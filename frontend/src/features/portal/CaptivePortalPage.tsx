@@ -321,8 +321,9 @@ export const CaptivePortalPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between items-center p-4 sm:p-6 selection:bg-blue-600 selection:text-white">
       {/* Hidden RouterOS Login Form for automated submission */}
+      <iframe name="router_login_frame" style={{ display: 'none' }} title="Router Login" />
       {handoffCredentials && (
-        <form ref={routerFormRef} method="POST" action={handoffCredentials.actionUrl} className="hidden">
+        <form ref={routerFormRef} target="router_login_frame" method="POST" action={handoffCredentials.actionUrl} className="hidden">
           <input type="hidden" name="username" value={handoffCredentials.username} />
           <input type="hidden" name="password" value={handoffCredentials.password} />
           <input type="hidden" name="dst" value={searchParams.get('link-orig') || 'https://www.google.com'} />
@@ -431,21 +432,44 @@ export const CaptivePortalPage: React.FC = () => {
 
               <div className="space-y-2 pt-1">
                 <a
+                  href="https://www.google.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md transition-all"
+                >
+                  <Globe className="h-4 w-4" />
+                  <span>{lang === 'SW' ? 'Fungua Intaneti (Anza Kutumia)' : 'Start Browsing (Open Web)'}</span>
+                </a>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (handoffCredentials && routerFormRef.current) {
+                      routerFormRef.current.submit();
+                    }
+                  }}
+                  className="w-full flex items-center justify-center gap-1.5 py-1.5 text-slate-400 hover:text-slate-200 text-[11px] font-medium"
+                >
+                  <RefreshCw className="h-3 w-3 text-blue-400" />
+                  <span>{lang === 'SW' ? 'Rudia kuunganisha kwenye Kisanduku' : 'Re-send Router Login'}</span>
+                </button>
+
+                <a
                   href="http://10.5.50.1/logout"
                   className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 text-xs font-semibold transition-colors"
                 >
                   <Power className="h-3.5 w-3.5" />
-                  {lang === 'SW' ? 'Toka kwenye Mtandao (Logout)' : 'Disconnect Session'}
+                  <span>{lang === 'SW' ? 'Toka kwenye Mtandao (Logout)' : 'Disconnect Session'}</span>
                 </a>
 
                 <button
                   type="button"
                   onClick={checkLiveStatus}
                   disabled={statusLoading}
-                  className="w-full flex items-center justify-center gap-1.5 py-2 text-slate-400 hover:text-slate-200 text-xs font-medium"
+                  className="w-full flex items-center justify-center gap-1.5 py-1 text-slate-500 hover:text-slate-300 text-[10px] font-medium"
                 >
-                  <RefreshCw className={`h-3 w-3 ${statusLoading ? 'animate-spin text-blue-400' : ''}`} />
-                  {lang === 'SW' ? 'Hakiki Hali ya Muunganisho' : 'Refresh Status'}
+                  <RefreshCw className={`h-2.5 w-2.5 ${statusLoading ? 'animate-spin text-blue-400' : ''}`} />
+                  <span>{lang === 'SW' ? 'Hakiki Hali ya Muunganisho' : 'Refresh Status'}</span>
                 </button>
               </div>
             </div>
