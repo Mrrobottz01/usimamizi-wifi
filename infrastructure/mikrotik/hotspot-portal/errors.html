@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Connection Error — Usimamizi Wi-Fi</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="portal-container">
+    <div class="header">
+      <div class="logo-icon" style="background-color: rgba(220, 38, 38, 0.1); color: var(--error-text);">
+        <svg viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+      </div>
+      <h1>Unable to Connect</h1>
+      <p class="subtitle">Please check your voucher details below</p>
+    </div>
+
+    $(if error)
+    <div class="alert alert-error">
+      $(error)
+    </div>
+    $(endif)
+
+    <a href="$(link-login)" class="btn-submit" style="display: block; text-align: center; text-decoration: none; line-height: 48px;">Try Again</a>
+
+    <div class="footer">
+      <p>If your voucher has expired, please request a new voucher code from the front desk.</p>
+    </div>
+  </div>
+</body>
+</html>

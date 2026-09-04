@@ -1,0 +1,22 @@
+# FreeRADIUS rlm_rest Module Configuration (Phase 4 Central AAA)
+# Routes RADIUS Access-Request and Accounting-Request packets to Django REST API endpoints
+
+rest {
+    connect_uri = "http://127.0.0.1:8000/api/v1/radius"
+
+    # Authorization / Authentication Mapping
+    authorize {
+        uri = "${..connect_uri}/authorize/"
+        method = "post"
+        body = "json"
+        data = '{"username": "%{User-Name}", "password": "%{User-Password}", "nas_ip": "%{NAS-IP-Address}", "nas_identifier": "%{NAS-Identifier}", "mac_address": "%{Calling-Station-Id}"}'
+    }
+
+    # Accounting Mapping (Start, Interim, Stop)
+    accounting {
+        uri = "${..connect_uri}/accounting/"
+        method = "post"
+        body = "json"
+        data = '{"session_id": "%{Acct-Session-Id}", "username": "%{User-Name}", "nas_ip": "%{NAS-IP-Address}", "nas_identifier": "%{NAS-Identifier}", "packet_type": "%{Acct-Status-Type}", "mac_address": "%{Calling-Station-Id}", "framed_ip": "%{Framed-IP-Address}", "input_bytes": "%{Acct-Input-Octets}", "output_bytes": "%{Acct-Output-Octets}", "input_gigawords": "%{Acct-Input-Gigawords}", "output_gigawords": "%{Acct-Output-Gigawords}", "session_time": "%{Acct-Session-Time}", "terminate_cause": "%{Acct-Terminate-Cause}"}'
+    }
+}

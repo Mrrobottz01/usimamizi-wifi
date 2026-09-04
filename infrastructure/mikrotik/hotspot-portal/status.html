@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Connected — Usimamizi Wi-Fi</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="portal-container">
+    <div class="header">
+      <div class="logo-icon" style="background-color: rgba(16, 185, 129, 0.1); color: #10b981;">
+        <svg viewBox="0 0 24 24">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+          <polyline points="22 4 12 14.01 9 11.01"></polyline>
+        </svg>
+      </div>
+      <h1>Internet Connected</h1>
+      <p class="subtitle">Welcome to Usimamizi Wi-Fi Network</p>
+    </div>
+
+    <table class="info-table">
+      <tr>
+        <td class="label">Voucher Code</td>
+        <td class="value">$(username)</td>
+      </tr>
+      <tr>
+        <td class="label">IP Address</td>
+        <td class="value">$(ip)</td>
+      </tr>
+      <tr>
+        <td class="label">MAC Address</td>
+        <td class="value">$(mac)</td>
+      </tr>
+      <tr>
+        <td class="label">Session Uptime</td>
+        <td class="value">$(uptime)</td>
+      </tr>
+      $(if session-time-left)
+      <tr>
+        <td class="label">Time Remaining</td>
+        <td class="value">$(session-time-left)</td>
+      </tr>
+      $(endif)
+      <tr>
+        <td class="label">Data Downloaded</td>
+        <td class="value">$(bytes-out-nice)</td>
+      </tr>
+      <tr>
+        <td class="label">Data Uploaded</td>
+        <td class="value">$(bytes-in-nice)</td>
+      </tr>
+    </table>
+
+    <form action="$(link-logout)" name="logout" onSubmit="return openLogout()">
+      <button type="submit" class="btn-submit" style="background-color: var(--text-muted);">Disconnect Session</button>
+    </form>
+
+    <div class="footer">
+      <p>Enjoy your internet connection!</p>
+    </div>
+  </div>
+</body>
+</html>

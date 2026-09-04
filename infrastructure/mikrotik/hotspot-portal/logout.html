@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Disconnected — Usimamizi Wi-Fi</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="portal-container">
+    <div class="header">
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="15" y1="9" x2="9" y2="15"></line>
+          <line x1="9" y1="9" x2="15" y2="15"></line>
+        </svg>
+      </div>
+      <h1>Session Logged Out</h1>
+      <p class="subtitle">Your Wi-Fi session has been disconnected</p>
+    </div>
+
+    <table class="info-table">
+      <tr>
+        <td class="label">Voucher Code</td>
+        <td class="value">$(username)</td>
+      </tr>
+      <tr>
+        <td class="label">Session Duration</td>
+        <td class="value">$(uptime)</td>
+      </tr>
+    </table>
+
+    <a href="$(link-login)" class="btn-submit" style="display: block; text-align: center; text-decoration: none; line-height: 48px;">Reconnect to Internet</a>
+
+    <div class="footer">
+      <p>Thank you for using Usimamizi Wi-Fi.</p>
+    </div>
+  </div>
+</body>
+</html>

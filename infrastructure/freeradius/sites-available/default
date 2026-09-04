@@ -1,0 +1,54 @@
+# FreeRADIUS Default Virtual Server Policy
+# Handles incoming RADIUS Access-Request and Accounting packets using rest module
+
+server default {
+    listen {
+        type = auth
+        ipaddr = *
+        port = 1812
+    }
+
+    listen {
+        type = acct
+        ipaddr = *
+        port = 1813
+    }
+
+    authorize {
+        filter_username
+        preprocess
+
+        # Query Django AAA via REST
+        rest
+
+        # Process REST response status
+        if (ok || updated) {
+            update control {
+                Auth-Type := Accept
+            }
+        }
+        else {
+            reject
+        }
+    }
+
+    authenticate {
+        Auth-Type PAP {
+            pap
+        }
+        Auth-Type CHAP {
+            chap
+        }
+        Auth-Type MS-CHAP {
+            mschap
+        }
+    }
+
+    post-auth {
+        # Nothing additional needed; reply attributes returned by REST module are in reply list
+    }
+
+    accounting {
+        rest
+    }
+}

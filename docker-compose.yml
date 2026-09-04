@@ -1,0 +1,90 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: usimamizi_postgres
+    environment:
+      POSTGRES_DB: usimamizi_db
+      POSTGRES_USER: usimamizi
+      POSTGRES_PASSWORD: usimamizi_secret_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U usimamizi -d usimamizi_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: usimamizi_redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.backend
+    container_name: usimamizi_backend
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=True
+      - USE_SQLITE=False
+      - DATABASE_URL=postgres://usimamizi:usimamizi_secret_pass@postgres:5432/usimamizi_db
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  celery-worker:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.backend
+    container_name: usimamizi_celery_worker
+    command: celery -A config worker --loglevel=info
+    volumes:
+      - ./backend:/app
+    environment:
+      - DEBUG=True
+      - USE_SQLITE=False
+      - DATABASE_URL=postgres://usimamizi:usimamizi_secret_pass@postgres:5432/usimamizi_db
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - backend
+      - redis
+
+  celery-beat:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.backend
+    container_name: usimamizi_celery_beat
+    command: celery -A config beat --loglevel=info
+    volumes:
+      - ./backend:/app
+    environment:
+      - DEBUG=True
+      - USE_SQLITE=False
+      - DATABASE_URL=postgres://usimamizi:usimamizi_secret_pass@postgres:5432/usimamizi_db
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - backend
+      - redis
+
+volumes:
+  postgres_data:
