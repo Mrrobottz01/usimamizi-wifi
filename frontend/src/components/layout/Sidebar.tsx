@@ -16,6 +16,7 @@ import {
   BarChart3,
   DollarSign,
   ShieldCheck,
+  Repeat,
 } from 'lucide-react';
 
 interface SidebarItemProps {
@@ -85,7 +86,8 @@ export function Sidebar() {
           <SidebarItem to="/routers" icon={RouterIcon} label="Routers" badge="Phase 3" />
           <SidebarItem to="/hotspots" icon={Radio} label="Hotspots" badge="Phase 3" />
           <SidebarItem to="/sessions" icon={Activity} label="Active Sessions" />
-          <SidebarItem to="/customers" icon={Users} label="Customers" badge="Phase 3" />
+          <SidebarItem to="/customers" icon={Users} label="Customers" />
+          <SidebarItem to="/subscriptions" icon={Repeat} label="Subscriptions" />
           <SidebarItem to="/plans" icon={CreditCard} label="Internet Plans" />
           <SidebarItem to="/payments" icon={DollarSign} label="Payments & Orders" />
           <SidebarItem to="/walled-garden" icon={ShieldCheck} label="Walled Garden" />

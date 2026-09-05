@@ -29,6 +29,18 @@ from apps.payments.models import (
 from apps.plans.models import Plan, ValidityMode
 from apps.vouchers.models import Voucher, VoucherBatch, VoucherStatus
 from apps.vouchers.selectors.voucher_selectors import hash_voucher_code
+from apps.customers.models import (
+    Customer,
+    CustomerStatus,
+    SubscriptionRenewalMode,
+    Subscription,
+    SubscriptionEvent,
+    SubscriptionEventType,
+    SubscriptionSource,
+    SubscriptionStatus,
+)
+from apps.customers.services.customer_services import get_or_create_customer, register_or_update_device
+from apps.customers.services.subscription_services import calculate_plan_duration
 
 logger = logging.getLogger(__name__)
 
@@ -352,6 +364,91 @@ def process_verified_payment_completed(
         plan=plan,
         entitlement=entitlement
     )
+
+    # 6b. Customer & Subscription Linking
+    customer = None
+    subscription = None
+    if purchase.customer_phone:
+        try:
+            customer, _ = get_or_create_customer(
+                company=purchase.company,
+                phone=purchase.customer_phone,
+            )
+            if customer:
+                entitlement.consumer = customer
+
+                if purchase.client_mac:
+                    register_or_update_device(
+                        customer=customer,
+                        mac_address=purchase.client_mac,
+                    )
+
+                # Check if customer has an existing active or grace subscription for this plan
+                existing_sub = Subscription.objects.filter(
+                    customer=customer,
+                    company=purchase.company,
+                    plan=plan,
+                    status__in=[SubscriptionStatus.ACTIVE, SubscriptionStatus.GRACE],
+                ).order_by('-current_period_end').first()
+
+                if existing_sub:
+                    subscription = existing_sub
+                    duration = calculate_plan_duration(plan)
+                    if existing_sub.status == SubscriptionStatus.ACTIVE and existing_sub.current_period_end and existing_sub.current_period_end > now:
+                        new_start = existing_sub.current_period_end
+                        new_end = existing_sub.current_period_end + duration
+                    else:
+                        new_start = now
+                        new_end = now + duration
+
+                    subscription.status = SubscriptionStatus.ACTIVE
+                    subscription.current_period_start = new_start
+                    subscription.current_period_end = new_end
+                    subscription.grace_period_end = None
+                    subscription.save(update_fields=['status', 'current_period_start', 'current_period_end', 'grace_period_end', 'updated_at'])
+
+                    # Update entitlement validity to match extended period
+                    entitlement.valid_from = new_start
+                    entitlement.expires_at = new_end
+                    expires_at = new_end
+
+                    SubscriptionEvent.objects.create(
+                        subscription=subscription,
+                        event_type=SubscriptionEventType.RENEWED,
+                        old_status=existing_sub.status,
+                        new_status=SubscriptionStatus.ACTIVE,
+                        actor=None,
+                        source='PAYMENT',
+                        metadata={'purchase_reference': purchase.reference, 'entitlement_reference': ent_ref},
+                    )
+                else:
+                    subscription = Subscription.objects.create(
+                        company=purchase.company,
+                        customer=customer,
+                        plan=plan,
+                        hotspot=purchase.hotspot,
+                        status=SubscriptionStatus.ACTIVE,
+                        started_at=now,
+                        current_period_start=valid_from,
+                        current_period_end=expires_at,
+                        renewal_mode=SubscriptionRenewalMode.MANUAL,
+                        source=SubscriptionSource.SELF_SERVICE_PAYMENT,
+                        plan_snapshot=plan_snapshot,
+                    )
+                    SubscriptionEvent.objects.create(
+                        subscription=subscription,
+                        event_type=SubscriptionEventType.ACTIVATED,
+                        old_status=SubscriptionStatus.PENDING,
+                        new_status=SubscriptionStatus.ACTIVE,
+                        actor=None,
+                        source='PAYMENT',
+                        metadata={'purchase_reference': purchase.reference, 'entitlement_reference': ent_ref},
+                    )
+
+                entitlement.subscription = subscription
+                entitlement.save(update_fields=['consumer', 'subscription', 'valid_from', 'expires_at'])
+        except Exception as cust_err:
+            logger.error("Failed to link customer/subscription for purchase %s: %s", purchase.reference, cust_err)
 
     # 7. Update AccessPurchase to FULFILLED
     purchase.status = PurchaseStatus.FULFILLED

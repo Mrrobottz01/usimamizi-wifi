@@ -6,7 +6,8 @@ import { SecuritySettings } from './SecuritySettings';
 import { PaymentProviderSettings } from './PaymentProviderSettings';
 import { UplinkNetworkSettings } from './UplinkNetworkSettings';
 import { HotspotSettingsPage } from './HotspotSettingsPage';
-import { Building2, Palette, Bell, Shield, CreditCard, Wifi } from 'lucide-react';
+import { CustomerSubscriptionSettings } from './CustomerSubscriptionSettings';
+import { Building2, Palette, Bell, Shield, CreditCard, Wifi, Users } from 'lucide-react';
 
 export function SettingsLayout() {
   return (
@@ -67,6 +68,13 @@ export function SettingsLayout() {
             <Shield className="h-4 w-4" />
             Security
           </TabsTrigger>
+          <TabsTrigger
+            value="subscriptions"
+            className="flex items-center gap-2 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none px-1 pb-3 pt-2 text-muted-foreground data-[state=active]:text-foreground font-medium"
+          >
+            <Users className="h-4 w-4" />
+            Subscriptions & OTP
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="payments" className="pt-6">
@@ -89,6 +97,9 @@ export function SettingsLayout() {
         </TabsContent>
         <TabsContent value="security" className="pt-6">
           <SecuritySettings />
+        </TabsContent>
+        <TabsContent value="subscriptions" className="pt-6">
+          <CustomerSubscriptionSettings />
         </TabsContent>
       </Tabs>
     </div>

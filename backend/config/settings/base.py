@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     'apps.hotspot_sessions.apps.HotspotSessionsConfig',
     'apps.radius.apps.RadiusConfig',
     'apps.payments.apps.PaymentsConfig',
+    'apps.customers.apps.CustomersConfig',
 ]
 
 MIDDLEWARE = [

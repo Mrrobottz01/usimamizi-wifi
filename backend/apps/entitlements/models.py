@@ -47,6 +47,22 @@ class AccessEntitlement(models.Model):
         help_text="One-to-one constraint: A voucher can yield maximum 1 access entitlement."
     )
     plan = models.ForeignKey(Plan, on_delete=models.PROTECT, related_name='entitlements')
+    subscription = models.ForeignKey(
+        'customers.Subscription',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='entitlements',
+        help_text="Optional commercial subscription lifecycle contract generating this entitlement."
+    )
+    consumer = models.ForeignKey(
+        'customers.Customer',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='entitlements',
+        help_text="Optional end-consumer identity holding this entitlement."
+    )
 
     source_type = models.CharField(max_length=32, choices=EntitlementSourceType.choices, default=EntitlementSourceType.VOUCHER)
     status = models.CharField(max_length=32, choices=EntitlementStatus.choices, default=EntitlementStatus.PENDING, db_index=True)

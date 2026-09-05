@@ -39,6 +39,9 @@ class HotspotSession(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='hotspot_sessions')
     entitlement = models.ForeignKey(AccessEntitlement, on_delete=models.CASCADE, related_name='sessions')
+    consumer = models.ForeignKey('customers.Customer', on_delete=models.SET_NULL, null=True, blank=True, related_name='hotspot_sessions')
+    device = models.ForeignKey('customers.CustomerDevice', on_delete=models.SET_NULL, null=True, blank=True, related_name='hotspot_sessions')
+    subscription = models.ForeignKey('customers.Subscription', on_delete=models.SET_NULL, null=True, blank=True, related_name='hotspot_sessions')
     radius_client = models.ForeignKey('radius.RadiusClient', on_delete=models.SET_NULL, null=True, blank=True, related_name='sessions')
 
     acct_session_id = models.CharField(max_length=255, db_index=True)

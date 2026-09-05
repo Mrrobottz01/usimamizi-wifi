@@ -38,6 +38,7 @@ urlpatterns = [
         path('radius/', include('apps.radius.api.urls')),
         path('payments/', include('apps.payments.api.urls')),
         path('public/', include('apps.payments.api.public_urls')),
+        path('', include('apps.customers.api.urls')),
     ])),
     # Static assets for built frontend
     re_path(

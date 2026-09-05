@@ -559,3 +559,109 @@ export interface AntiTetheringCounters {
   total_blocked_bytes: number;
   router_reachable: boolean;
 }
+
+export type CustomerStatus = 'ACTIVE' | 'SUSPENDED' | 'BLOCKED' | 'ARCHIVED';
+
+export interface CustomerDevice {
+  id: string;
+  mac_address: string;
+  device_name?: string;
+  device_type: 'MOBILE' | 'LAPTOP' | 'TABLET' | 'OTHER';
+  is_trusted: boolean;
+  is_blocked: boolean;
+  first_seen_at: string;
+  last_seen_at?: string;
+  created_at: string;
+}
+
+export interface CustomerActiveSubscriptionInfo {
+  id: string;
+  plan_name: string;
+  status: SubscriptionStatus;
+  current_period_end?: string;
+  remaining_seconds: number;
+}
+
+export interface Customer {
+  id: string;
+  company_id: string;
+  phone: string;
+  normalized_phone: string;
+  first_name: string;
+  last_name: string;
+  full_name: string;
+  email?: string;
+  status: CustomerStatus;
+  language: 'EN' | 'SW';
+  notes?: string;
+  devices_count: number;
+  active_subscription?: CustomerActiveSubscriptionInfo;
+  total_spent: string;
+  last_seen_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type SubscriptionStatus = 'PENDING' | 'ACTIVE' | 'GRACE' | 'SUSPENDED' | 'EXPIRED' | 'CANCELLED';
+export type SubscriptionRenewalMode = 'MANUAL' | 'AUTO_RENEW_FUTURE';
+export type SubscriptionSource = 'SELF_SERVICE_PAYMENT' | 'ADMIN_CREATED' | 'VOUCHER_UPGRADE' | 'PROMOTIONAL' | 'MANUAL';
+
+export interface SubscriptionEvent {
+  id: string;
+  event_type: string;
+  old_status: string;
+  new_status: string;
+  actor_email?: string;
+  source: string;
+  metadata: Record<string, any>;
+  created_at: string;
+}
+
+export interface Subscription {
+  id: string;
+  company_id: string;
+  customer_id: string;
+  customer_phone: string;
+  customer_name: string;
+  plan_id: string;
+  plan_name: string;
+  plan_price: string;
+  plan_currency: string;
+  hotspot_id?: string;
+  hotspot_name?: string;
+  status: SubscriptionStatus;
+  started_at?: string;
+  current_period_start?: string;
+  current_period_end?: string;
+  grace_period_end?: string;
+  remaining_seconds: number;
+  is_valid_now: boolean;
+  renewal_mode: SubscriptionRenewalMode;
+  source: SubscriptionSource;
+  plan_snapshot: Record<string, any>;
+  events?: SubscriptionEvent[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomerSubscriptionSettings {
+  id?: string;
+  grace_period_minutes: number;
+  otp_expiry_minutes: number;
+  otp_resend_cooldown_seconds: number;
+  remind_1day_before: boolean;
+  remind_1hour_before: boolean;
+  remind_at_expiry: boolean;
+  allow_self_service: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CustomerTimelineItem {
+  type: 'SUBSCRIPTION_EVENT' | 'PAYMENT' | 'HOTSPOT_SESSION' | 'SMS';
+  title: string;
+  description: string;
+  timestamp: string;
+  metadata: Record<string, any>;
+}
+

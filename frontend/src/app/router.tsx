@@ -11,13 +11,16 @@ import { VoucherBatchDetailView } from '../features/vouchers/VoucherBatchDetailV
 import { EntitlementsListPage } from '../features/entitlements/EntitlementsListPage';
 import { ActiveSessionsPage } from '../features/sessions/ActiveSessionsPage';
 import { CaptivePortalPage } from '../features/portal/CaptivePortalPage';
+import { CustomerPortalPage } from '../features/portal/CustomerPortalPage';
+import { CustomersListPage } from '../features/customers/CustomersListPage';
+import { CustomerDetailPage } from '../features/customers/CustomerDetailPage';
+import { SubscriptionsListPage } from '../features/subscriptions/SubscriptionsListPage';
 import { PaymentsPage } from '../features/payments/PaymentsPage';
 import { WalledGardenPage } from '../features/payments/WalledGardenPage';
 import { PlaceholderPage } from '../features/placeholder/PlaceholderPage';
 import {
   MapPin,
   Router as RouterIcon,
-  Users,
   BarChart3,
 } from 'lucide-react';
 
@@ -28,8 +31,16 @@ export const router = createBrowserRouter([
     element: <CaptivePortalPage />,
   },
   {
+    path: '/p/:slug/account',
+    element: <CustomerPortalPage />,
+  },
+  {
     path: '/portal/:slug',
     element: <CaptivePortalPage />,
+  },
+  {
+    path: '/portal/:slug/account',
+    element: <CustomerPortalPage />,
   },
 
   // Authentication & Core Admin Shell
@@ -212,12 +223,27 @@ export const router = createBrowserRouter([
     element: (
       <ProtectedRoute>
         <AppShell>
-          <PlaceholderPage
-            title="Customers & Devices"
-            description="Track customer phone numbers, MAC addresses, and access history."
-            phase="Phase 3 Core"
-            icon={Users}
-          />
+          <CustomersListPage />
+        </AppShell>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/customers/:id',
+    element: (
+      <ProtectedRoute>
+        <AppShell>
+          <CustomerDetailPage />
+        </AppShell>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/subscriptions',
+    element: (
+      <ProtectedRoute>
+        <AppShell>
+          <SubscriptionsListPage />
         </AppShell>
       </ProtectedRoute>
     ),
