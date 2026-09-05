@@ -279,7 +279,12 @@ export const CaptivePortalPage: React.FC = () => {
       const res = await fetch(`/api/v1/public/hotspots/${hotspot.slug}/status/?username=${encodeURIComponent(connectedSession.voucher)}`);
       if (res.ok) {
         const data: CustomerSessionStatus = await res.json();
-        setConnectedSession((prev) => (prev ? { ...prev, planName: data.plan_name || prev.planName } : null));
+        setConnectedSession((prev) => (prev ? {
+          ...prev,
+          planName: data.plan_name || prev.planName,
+          remainingSeconds: data.remaining_seconds !== undefined ? data.remaining_seconds : prev.remainingSeconds,
+          remainingDataBytes: data.remaining_data_bytes !== undefined ? data.remaining_data_bytes : prev.remainingDataBytes,
+        } : null));
       }
     } catch (err) {
       console.error('Status check error', err);
@@ -287,6 +292,18 @@ export const CaptivePortalPage: React.FC = () => {
       setStatusLoading(false);
     }
   };
+
+  // Live countdown timer for active session
+  useEffect(() => {
+    if (!connectedSession || connectedSession.remainingSeconds === undefined || connectedSession.remainingSeconds <= 0) return;
+    const timer = setInterval(() => {
+      setConnectedSession((prev) => {
+        if (!prev || prev.remainingSeconds === undefined || prev.remainingSeconds <= 0) return prev;
+        return { ...prev, remainingSeconds: Math.max(0, prev.remainingSeconds - 1) };
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [connectedSession?.remainingSeconds]);
 
   if (loading) {
     return (
@@ -466,11 +483,21 @@ export const CaptivePortalPage: React.FC = () => {
                   type="button"
                   onClick={checkLiveStatus}
                   disabled={statusLoading}
-                  className="w-full flex items-center justify-center gap-1.5 py-1 text-slate-500 hover:text-slate-300 text-[10px] font-medium"
+                  className="w-full flex items-center justify-center gap-1.5 py-1 text-slate-400 hover:text-slate-200 text-[11px] font-medium"
                 >
-                  <RefreshCw className={`h-2.5 w-2.5 ${statusLoading ? 'animate-spin text-blue-400' : ''}`} />
-                  <span>{lang === 'SW' ? 'Hakiki Hali ya Muunganisho' : 'Refresh Status'}</span>
+                  <RefreshCw className={`h-3 w-3 ${statusLoading ? 'animate-spin text-blue-400' : 'text-blue-400'}`} />
+                  <span>{lang === 'SW' ? 'Hakiki Hali ya Muunganisho (Refresh)' : 'Refresh Status'}</span>
                 </button>
+
+                <a
+                  href="http://10.5.50.1/status"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full flex items-center justify-center gap-1.5 py-1 text-slate-500 hover:text-slate-300 text-[10px] font-medium underline underline-offset-2"
+                >
+                  <Activity className="h-3 w-3 text-emerald-400" />
+                  <span>{lang === 'SW' ? 'Ukurasa wa Moja kwa Moja wa Router (10.5.50.1/status)' : 'Router Live Status Page (10.5.50.1/status)'}</span>
+                </a>
               </div>
             </div>
           ) : activePurchase && isPollingPurchase ? (

@@ -415,6 +415,8 @@ export interface CustomerSessionStatus {
   input_bytes?: number;
   output_bytes?: number;
   started_at?: string;
+  remaining_seconds?: number;
+  remaining_data_bytes?: number;
 }
 
 export interface PublicPlan {

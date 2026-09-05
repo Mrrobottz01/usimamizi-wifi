@@ -81,6 +81,9 @@ class PublicHotspotVoucherRedeemView(APIView):
         return Response(result, status=http_status)
 
 
+from django.utils import timezone
+from apps.vouchers.models import Voucher
+
 class PublicHotspotStatusView(APIView):
     """
     GET /api/v1/public/hotspots/{slug}/status/?username={voucher_code}
@@ -97,17 +100,38 @@ class PublicHotspotStatusView(APIView):
         if not username:
             return Response({"code": "missing_username", "detail": "'username' parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
 
+        clean_code = username.upper().replace('-', '').replace(' ', '')
+
         # Look up active session for this voucher username
         session = HotspotSession.objects.filter(
             company=hotspot.company,
             username__iexact=username
         ).order_by('-started_at').first()
 
+        # Resolve entitlement from session or directly from voucher
+        entitlement = session.entitlement if (session and session.entitlement) else None
+        if not entitlement:
+            voucher = Voucher.objects.filter(company=hotspot.company, code=clean_code).first()
+            if voucher and hasattr(voucher, 'entitlement'):
+                entitlement = voucher.entitlement
+
+        now = timezone.now()
+        remaining_seconds = None
+        remaining_data_bytes = None
+        if entitlement:
+            if entitlement.expires_at:
+                remaining_seconds = max(0, int((entitlement.expires_at - now).total_seconds()))
+            if entitlement.data_limit_bytes is not None:
+                remaining_data_bytes = max(0, entitlement.data_limit_bytes - entitlement.data_used_bytes)
+
         if not session:
             return Response({
-                "connected": False,
-                "status": "DISCONNECTED",
+                "connected": entitlement is not None and entitlement.status == 'ACTIVE',
+                "status": "ACTIVE" if (entitlement and entitlement.status == 'ACTIVE') else "DISCONNECTED",
                 "username": username,
+                "plan_name": entitlement.plan.name if (entitlement and entitlement.plan) else "Access Plan",
+                "remaining_seconds": remaining_seconds,
+                "remaining_data_bytes": remaining_data_bytes,
             }, status=status.HTTP_200_OK)
 
         return Response({
@@ -121,6 +145,8 @@ class PublicHotspotStatusView(APIView):
             "input_bytes": session.input_bytes,
             "output_bytes": session.output_bytes,
             "started_at": session.started_at,
+            "remaining_seconds": remaining_seconds,
+            "remaining_data_bytes": remaining_data_bytes,
         }, status=status.HTTP_200_OK)
 
 
