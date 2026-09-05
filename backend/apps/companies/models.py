@@ -133,3 +133,90 @@ class RouterUplinkProfile(models.Model):
     def __str__(self):
         return f"{self.name} ({self.ssid}) - {'ACTIVE' if self.is_active else 'SAVED'}"
 
+
+class IPv6Policy(models.TextChoices):
+    DISABLED = 'DISABLED', 'Disabled (Not Configured)'
+    BLOCK_IPV6 = 'BLOCK_IPV6', 'Block IPv6 Traffic'
+    FUTURE_MANAGED = 'FUTURE_MANAGED', 'Future Managed'
+
+
+class AntiTetheringPolicy(models.Model):
+    """
+    Tenant-scoped policy for controlling hotspot tethering / Wi-Fi sharing.
+    Manages MikroTik TTL locks, forwarded TTL drops, and AAA device boundaries.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    company = models.ForeignKey(
+        Company,
+        on_delete=models.CASCADE,
+        related_name='anti_tethering_policies'
+    )
+    hotspot = models.OneToOneField(
+        HotspotConfiguration,
+        on_delete=models.CASCADE,
+        related_name='anti_tethering_policy'
+    )
+
+    enabled = models.BooleanField(
+        default=True,
+        help_text="Master toggle to enforce Anti-Tethering protection."
+    )
+
+    # AAA & Device Boundaries (synced with plan / entitlement guidelines)
+    max_devices = models.PositiveIntegerField(
+        default=1,
+        help_text="Maximum authorized physical devices per entitlement."
+    )
+    simultaneous_sessions = models.PositiveIntegerField(
+        default=1,
+        help_text="Maximum concurrent RADIUS sessions per voucher/account."
+    )
+
+    # IPv4 Downstream TTL Lock (Mangle postrouting set:1)
+    ttl_lock_enabled = models.BooleanField(
+        default=True,
+        help_text="Enforce IPv4 downstream TTL lock to prevent tethered forwarding."
+    )
+    ttl_lock_value = models.PositiveIntegerField(
+        default=1,
+        help_text="Target TTL value for downstream client packets (standard is 1)."
+    )
+
+    # Forwarded Client Traffic Detection (Filter forward drops)
+    detect_ttl_63 = models.BooleanField(
+        default=True,
+        help_text="Drop forwarded client packets from Android/iOS/macOS (TTL 63)."
+    )
+    detect_ttl_127 = models.BooleanField(
+        default=True,
+        help_text="Drop forwarded client packets from Windows (TTL 127)."
+    )
+
+    # Advanced Controls
+    strict_mode = models.BooleanField(
+        default=False,
+        help_text="Strict enforcement mode (experimental)."
+    )
+    ipv6_policy = models.CharField(
+        max_length=32,
+        choices=IPv6Policy.choices,
+        default=IPv6Policy.DISABLED
+    )
+
+    # Synchronization state
+    last_synced_at = models.DateTimeField(null=True, blank=True)
+    last_router_status = models.JSONField(default=dict, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'anti_tethering_policies'
+        verbose_name = 'Anti-Tethering Policy'
+        verbose_name_plural = 'Anti-Tethering Policies'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        status_str = "ENABLED" if self.enabled else "DISABLED"
+        return f"Anti-Tethering ({self.hotspot.name}) - {status_str}"
+

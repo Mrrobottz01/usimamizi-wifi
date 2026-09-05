@@ -5,6 +5,7 @@ import { NotificationsSettings } from './NotificationsSettings';
 import { SecuritySettings } from './SecuritySettings';
 import { PaymentProviderSettings } from './PaymentProviderSettings';
 import { UplinkNetworkSettings } from './UplinkNetworkSettings';
+import { HotspotSettingsPage } from './HotspotSettingsPage';
 import { Building2, Palette, Bell, Shield, CreditCard, Wifi } from 'lucide-react';
 
 export function SettingsLayout() {
@@ -30,6 +31,13 @@ export function SettingsLayout() {
           >
             <Wifi className="h-4 w-4" />
             Uplink WAN
+          </TabsTrigger>
+          <TabsTrigger
+            value="hotspot"
+            className="flex items-center gap-2 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none px-1 pb-3 pt-2 text-muted-foreground data-[state=active]:text-foreground font-medium"
+          >
+            <Shield className="h-4 w-4 text-emerald-500" />
+            HotSpot & Protection
           </TabsTrigger>
           <TabsTrigger
             value="company"
@@ -66,6 +74,9 @@ export function SettingsLayout() {
         </TabsContent>
         <TabsContent value="uplink" className="pt-6">
           <UplinkNetworkSettings />
+        </TabsContent>
+        <TabsContent value="hotspot" className="pt-6">
+          <HotspotSettingsPage />
         </TabsContent>
         <TabsContent value="company" className="pt-6">
           <CompanySettings />

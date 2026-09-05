@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { apiClient } from '../../lib/api-client';
 import { Button } from '../../components/ui/button';
@@ -12,7 +13,9 @@ import {
   Check,
   AlertCircle,
   Lock,
+  ShieldCheck,
 } from 'lucide-react';
+import { AntiTetheringSettings } from './AntiTetheringSettings';
 
 interface HotspotSettingsData {
   id?: string;
@@ -35,6 +38,17 @@ interface HotspotSettingsData {
 export const HotspotSettingsPage: React.FC = () => {
   const { selectedCompany } = useAuth();
   const companyId = selectedCompany?.id;
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const tabParam = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState<'branding' | 'anti-tethering'>(
+    tabParam === 'anti-tethering' ? 'anti-tethering' : 'branding'
+  );
+
+  const handleTabChange = (tab: 'branding' | 'anti-tethering') => {
+    setActiveTab(tab);
+    setSearchParams(tab === 'branding' ? {} : { tab });
+  };
 
   const [settings, setSettings] = useState<HotspotSettingsData>({
     name: 'Main Wi-Fi HotSpot',
@@ -151,7 +165,38 @@ export const HotspotSettingsPage: React.FC = () => {
         </div>
       </div>
 
-      {loading ? (
+      {/* Subtabs: Portal Branding vs Anti-Tethering */}
+      <div className="flex items-center gap-2 border-b border-border">
+        <button
+          type="button"
+          onClick={() => handleTabChange('branding')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-colors ${
+            activeTab === 'branding'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Wifi className="h-4 w-4" />
+          <span>Portal Branding & Appearance</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleTabChange('anti-tethering')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-colors ${
+            activeTab === 'anti-tethering'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <ShieldCheck className="h-4 w-4" />
+          <span>Anti-Tethering & Router Policy</span>
+        </button>
+      </div>
+
+      {activeTab === 'anti-tethering' ? (
+        <AntiTetheringSettings />
+      ) : loading ? (
         <div className="py-20 text-center text-sm text-muted-foreground flex flex-col items-center justify-center gap-2">
           <RefreshCw className="h-6 w-6 animate-spin text-primary" />
           Loading hotspot branding configurations…

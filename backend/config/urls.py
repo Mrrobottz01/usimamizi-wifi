@@ -30,6 +30,7 @@ urlpatterns = [
         path('plans/', include('apps.plans.api.urls')),
         path('entitlements/', include('apps.entitlements.api.urls')),
         path('sessions/', include('apps.hotspot_sessions.api.urls')),
+        path('hotspots/', include('apps.companies.api.hotspot_urls')),
         path('public/hotspots/', include('apps.companies.api.public_urls')),
         path('settings/hotspot/', HotspotSettingsAdminView.as_view(), name='settings-hotspot'),
         path('', include('apps.vouchers.api.urls')),

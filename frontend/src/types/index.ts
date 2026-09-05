@@ -516,5 +516,46 @@ export interface HotspotWalledGardenEntry {
   created_at: string;
 }
 
+export interface AntiTetheringPolicy {
+  id: string;
+  hotspot_id: string;
+  hotspot_name: string;
+  enabled: boolean;
+  max_devices: number;
+  simultaneous_sessions: number;
+  ttl_lock_enabled: boolean;
+  ttl_lock_value: number;
+  detect_ttl_63: boolean;
+  detect_ttl_127: boolean;
+  strict_mode: boolean;
+  ipv6_policy: 'DISABLED' | 'BLOCK_IPV6' | 'FUTURE_MANAGED';
+  last_synced_at?: string;
+  last_router_status?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
 
+export interface AntiTetheringRouterStatus {
+  status: 'ACTIVE' | 'PARTIALLY_ACTIVE' | 'DISABLED' | 'OUT_OF_SYNC' | 'ROUTER_UNREACHABLE' | 'ERROR';
+  router_reachable: boolean;
+  ttl_lock_active: boolean;
+  ttl_63_active: boolean;
+  ttl_127_active: boolean;
+  rules_found: number;
+  last_synced_at?: string;
+  error?: string;
+  details?: {
+    ttl_lock?: { id: string; new_ttl?: string; packets: number; bytes: number };
+    ttl_63?: { id: string; packets: number; bytes: number };
+    ttl_127?: { id: string; packets: number; bytes: number };
+  };
+}
 
+export interface AntiTetheringCounters {
+  ttl_lock: { packets: number; bytes: number; active: boolean };
+  ttl_63: { packets: number; bytes: number; active: boolean };
+  ttl_127: { packets: number; bytes: number; active: boolean };
+  total_blocked_packets: number;
+  total_blocked_bytes: number;
+  router_reachable: boolean;
+}
