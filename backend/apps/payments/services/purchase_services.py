@@ -187,7 +187,7 @@ def initiate_access_purchase(
     target_webhook_url = (
         webhook_url
         or getattr(settings, 'SNIPPE_WEBHOOK_URL', None)
-        or 'https://usimamizi.co.tz/api/v1/payments/snippe/webhook/'
+        or 'https://wifi.swahilicode.tech/api/v1/payments/snippe/webhook/'
     )
 
     api_result = adapter.create_payment(
