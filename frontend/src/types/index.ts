@@ -340,6 +340,7 @@ export interface HotspotSession {
   username: string;
   mac_address: string;
   ip_address?: string;
+  device_name?: string;
   status: SessionStatus;
   entitlement_id: string;
   entitlement_reference: string;
@@ -379,14 +380,35 @@ export interface PublicHotspotConfig {
   terms_url?: string;
   privacy_url?: string;
   default_language: 'EN' | 'SW';
+  gateway_ip?: string;
+  login_url?: string;
   router_login_url: string;
+  context_token?: string;
   is_active: boolean;
 }
+
+export interface PublicPortalContextResponse {
+  hotspot: PublicHotspotConfig;
+  login_url: string;
+  gateway_ip: string;
+  context_token: string;
+  session_context: {
+    mac?: string;
+    ip?: string;
+    link_orig?: string;
+    gateway_ip?: string;
+  };
+  plans: PublicPlan[];
+}
+
+export type PortalHandoffStatus = 'IDLE' | 'ACTIVATING' | 'CONNECTED' | 'FAILED';
 
 export interface PublicVoucherSubmitPayload {
   voucher_code: string;
   customer_phone?: string;
   language?: 'EN' | 'SW';
+  context_token?: string;
+  link_login?: string;
 }
 
 export interface PublicVoucherRedeemResponse {
@@ -400,6 +422,7 @@ export interface PublicVoucherRedeemResponse {
   remaining_seconds?: number;
   remaining_data_bytes?: number;
   router_login_url?: string;
+  gateway_ip?: string;
   error_code?: string;
   message?: string;
 }
@@ -444,6 +467,8 @@ export interface PublicPurchaseStatusResponse {
   plan_name: string;
   voucher_code?: string;
   checkout_url?: string;
+  router_login_url?: string;
+  gateway_ip?: string;
   error_message?: string;
   created_at: string;
   completed_at?: string;
@@ -664,4 +689,316 @@ export interface CustomerTimelineItem {
   timestamp: string;
   metadata: Record<string, any>;
 }
+
+// ==========================================
+// INFRASTRUCTURE DOMAIN TYPES (PHASES A - E)
+// ==========================================
+
+export type SiteType =
+  | 'BRANCH'
+  | 'HOTEL'
+  | 'RESTAURANT'
+  | 'CAFE'
+  | 'BUS_TERMINAL'
+  | 'MALL'
+  | 'OFFICE'
+  | 'PUBLIC_SITE'
+  | 'OTHER';
+
+export type LocationStatus = 'ACTIVE' | 'INACTIVE' | 'MAINTENANCE';
+
+export type LocationNetworkHealth = 'HEALTHY' | 'DEGRADED' | 'OFFLINE' | 'UNKNOWN';
+
+export interface LocationNetworkSummary {
+  network_health: LocationNetworkHealth;
+  total_routers: number;
+  online_routers: number;
+  degraded_routers: number;
+  unreachable_routers: number;
+  total_hotspots: number;
+  active_hotspots: number;
+  active_sessions: number;
+}
+
+export interface LocationSummary {
+  id: string;
+  name: string;
+  code: string;
+  region: string;
+  district: string;
+  address: string;
+  latitude?: string | null;
+  longitude?: string | null;
+  timezone: string;
+  status: LocationStatus;
+  site_type: SiteType;
+  operating_hours?: string;
+  installation_date?: string | null;
+  external_reference?: string;
+  contact_person?: string;
+  contact_phone?: string;
+  notes?: string;
+  is_active: boolean;
+  network_health: LocationNetworkHealth;
+  router_count: number;
+  online_router_count: number;
+  degraded_router_count: number;
+  unreachable_router_count: number;
+  hotspot_count: number;
+  active_hotspot_count: number;
+  active_session_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LocationDetail extends LocationSummary {
+  network_summary: LocationNetworkSummary;
+  detail?: string;
+}
+
+export interface LocationRouterSummary {
+  id: string;
+  name: string;
+  identity: string;
+  vendor: string;
+  model: string;
+  management_ip: string;
+  api_port: number;
+  use_tls: boolean;
+  has_credentials: boolean;
+  health_status: RouterHealthStatus;
+  health_message: string;
+  last_health_check_at: string | null;
+  last_seen_at: string | null;
+  hotspots_count: number;
+  created_at: string;
+}
+
+export interface LocationHotspotSummary {
+  id: string;
+  name: string;
+  slug: string;
+  ssid: string;
+  is_default: boolean;
+  interface_name: string;
+  gateway_ip: string;
+  subnet_mask: string;
+  status: HotspotStatus;
+  is_active: boolean;
+  router_id: string | null;
+  router_name: string | null;
+  plans_count: number;
+  active_sessions_count: number;
+  anti_tethering_enabled?: boolean;
+  created_at: string;
+}
+
+export interface LocationSessionSummary {
+  id: string;
+  session_id: string;
+  username: string;
+  client_mac: string;
+  client_ip: string | null;
+  device_name?: string;
+  hotspot_id: string | null;
+  hotspot_name: string | null;
+  status: string;
+  started_at: string;
+  last_accounting_at: string | null;
+  stop_time: string | null;
+  bytes_in: number;
+  bytes_out: number;
+  total_bytes: number;
+  duration_seconds: number;
+  ip_address?: string;
+  mac_address?: string;
+  plan_name?: string;
+  start_time?: string;
+}
+
+export type RouterHealthStatus = 'ONLINE' | 'HEALTHY' | 'DEGRADED' | 'UNREACHABLE' | 'UNKNOWN';
+
+export interface RouterSummary {
+  id: string;
+  name: string;
+  identity: string;
+  vendor: string;
+  model: string;
+  serial_number: string;
+  firmware_version?: string;
+  routeros_version?: string;
+  architecture?: string;
+  management_ip: string;
+  api_port: number;
+  use_tls: boolean;
+  uplink_interface?: string;
+  uplink_interface_name?: string;
+  has_credentials: boolean;
+  api_username?: string;
+  health_status: RouterHealthStatus;
+  health_message: string;
+  last_health_check_at: string | null;
+  last_seen_at: string | null;
+  location: {
+    id: string;
+    name: string;
+    code?: string;
+  } | null;
+  location_id?: string;
+  location_name?: string;
+  hotspot_count?: number;
+  hotspots_count?: number;
+  cached_system_info?: Record<string, any>;
+  system_resources?: Record<string, any>;
+  fallback_management_ip?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RouterDetail extends RouterSummary {
+  company: string;
+  radius_client: {
+    id: string;
+    nas_name: string;
+    ip_address: string;
+    nas_identifier: string;
+    coa_port: number;
+    is_active: boolean;
+  } | null;
+  hotspots: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    ssid: string;
+    is_default: boolean;
+    status: string;
+    interface?: string;
+    interface_name?: string;
+    gateway_ip: string;
+    subnet_mask: string;
+    is_active?: boolean;
+  }>;
+  uplink_profiles_count?: number;
+}
+
+export interface RouterTestConnectionResult {
+  success: boolean;
+  latency_ms: number | null;
+  version?: string | null;
+  routeros_version?: string | null;
+  identity: string | null;
+  board_name?: string | null;
+  model?: string | null;
+  architecture?: string | null;
+  cpu_load?: number | null;
+  uptime?: string | null;
+  detail?: string | null;
+  message?: string | null;
+  authenticated?: boolean;
+  error?: string | null;
+  details?: Record<string, any>;
+}
+
+export interface RouterHealthResponse {
+  health_status: RouterHealthStatus;
+  health_message: string;
+  last_health_check_at: string;
+  last_seen_at: string | null;
+  telemetry?: {
+    cpu_load?: number;
+    free_memory_mb?: number;
+    total_memory_mb?: number;
+    uptime?: string;
+    board_name?: string;
+    version?: string;
+  };
+}
+
+export interface RouterProvisionStep {
+  name: string;
+  success: boolean;
+  message: string;
+  details?: Record<string, any>;
+  timestamp: string;
+}
+
+export interface RouterProvisionResult {
+  success: boolean;
+  router_id: string;
+  router_name: string;
+  management_ip: string;
+  health_status: string;
+  elapsed_ms: number;
+  steps: RouterProvisionStep[];
+  telemetry?: Record<string, any>;
+}
+
+export interface RouterBootstrapScript {
+  router_id: string;
+  router_name: string;
+  management_ip: string;
+  command: string;
+  download_url: string;
+  script: string;
+}
+
+export type HotspotStatus = 'ACTIVE' | 'DISABLED';
+
+export interface HotspotSummary {
+  id: string;
+  name: string;
+  slug: string;
+  ssid: string;
+  is_default: boolean;
+  status: HotspotStatus;
+  is_active: boolean;
+  location: {
+    id: string;
+    name: string;
+    code: string;
+  } | null;
+  router: {
+    id: string;
+    name: string;
+    management_ip: string;
+  } | null;
+  interface_name: string;
+  interface?: string;
+  gateway_ip: string;
+  subnet_mask: string;
+  plans_count: number;
+  active_sessions_count: number;
+  active_users_count?: number;
+  anti_tethering_enabled: boolean;
+  is_anti_tethering_enabled?: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface HotspotDetail extends HotspotSummary {
+  server_name: string;
+  router_login_url: string;
+  brand_name: string;
+  headline: string;
+  portal_title?: string;
+  welcome_text: string;
+  welcome_message?: string;
+  primary_color: string;
+  logo_url: string;
+  support_phone: string;
+  terms_url: string;
+  privacy_url: string;
+  default_language: 'EN' | 'SW';
+  plans: Array<{
+    id: string;
+    name: string;
+    code: string;
+    price: string;
+    currency: string;
+    duration_value: number;
+    duration_unit_display: string;
+    is_active: boolean;
+  }>;
+}
+
 

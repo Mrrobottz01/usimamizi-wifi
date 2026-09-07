@@ -1,5 +1,5 @@
 import re
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from django.db import transaction
 from django.utils import timezone
@@ -306,13 +306,20 @@ def send_voucher_sms(
     recipient_phone: str,
     company: Company,
     template_code: str = 'VOUCHER_CREATED',
-    language: str = 'en'
+    language: str = 'en',
+    hotspot: Optional[Any] = None
 ) -> NotificationMessage:
     """
     Queue and send voucher code via SMS.
     CRITICAL RULE: SMS delivery failure must NOT invalidate the voucher.
     """
     phone_norm = normalize_phone_number(recipient_phone)
+
+    if hotspot is None:
+        from apps.companies.services.portal_services import get_default_hotspot
+        hotspot = get_default_hotspot(company)
+
+    ssid = hotspot.ssid if (hotspot and hotspot.ssid) else 'Usimamizi-WiFi-Lab'
 
     # Render template
     template = NotificationTemplate.objects.filter(
@@ -328,14 +335,14 @@ def send_voucher_sms(
         body = template.body_template.replace('{{ voucher_code }}', voucher.display_code)
         body = body.replace('{{ plan_name }}', voucher.plan.name)
         body = body.replace('{{ validity }}', validity_str)
-        body = body.replace('{{ ssid }}', 'Usimamizi-WiFi-Lab')
+        body = body.replace('{{ ssid }}', ssid)
     else:
         # Default concise SMS content
         body = (
             f"Usimamizi Wi-Fi\n"
             f"Voucher: {voucher.display_code}\n"
             f"Package: {voucher.plan.name} ({validity_str})\n"
-            f"Connect to Usimamizi-WiFi-Lab and enter your voucher code."
+            f"Connect to {ssid} and enter your voucher code."
         )
 
     # Record recipient on voucher model

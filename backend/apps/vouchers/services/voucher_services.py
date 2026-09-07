@@ -227,7 +227,7 @@ def redeem_voucher(
     # 2. Transition to REDEEMED
     voucher.status = VoucherStatus.REDEEMED
     voucher.redeemed_at = timezone.now()
-    if customer_phone.strip():
+    if customer_phone and customer_phone.strip():
         voucher.redeemed_by_customer = customer_phone.strip()
         voucher.recipient_phone = customer_phone.strip()
     voucher.save()
@@ -391,10 +391,23 @@ def export_batch_csv(batch: VoucherBatch) -> str:
     return output.getvalue()
 
 
-def get_printable_voucher_cards(batch: VoucherBatch, portal_base_url: str = 'http://login.usimamizi.lab:5173') -> List[Dict[str, Any]]:
+def get_printable_voucher_cards(
+    batch: VoucherBatch,
+    portal_base_url: str = 'http://login.usimamizi.lab:5173',
+    hotspot: Optional[Any] = None
+) -> List[Dict[str, Any]]:
     """
     Generate structured data for rendering A4 multi-card printable voucher sheets.
     """
+    from apps.companies.services.portal_services import get_default_hotspot
+
+    if hotspot is None:
+        hotspot = get_default_hotspot(batch.company)
+
+    ssid = hotspot.ssid if (hotspot and getattr(hotspot, 'ssid', None)) else "Usimamizi-WiFi-Lab"
+    portal_slug = hotspot.slug if (hotspot and getattr(hotspot, 'slug', None)) else batch.company.slug
+    domain_display = getattr(hotspot, 'dns_name', None) or getattr(hotspot, 'gateway_ip', None) or "login.usimamizi.lab"
+
     vouchers = Voucher.objects.filter(batch=batch).order_by('display_code')
     validity_display = f"{batch.plan.duration_value} {batch.plan.get_duration_unit_display()}"
 
@@ -412,10 +425,10 @@ def get_printable_voucher_cards(batch: VoucherBatch, portal_base_url: str = 'htt
             "speed_display": f"{round(batch.plan.download_speed_kbps/1000, 1)}M Down" if batch.plan.download_speed_kbps else "Uncapped",
             "quota_display": f"{round(batch.plan.data_limit_bytes/(1024*1024), 0)}MB" if batch.plan.data_limit_bytes else "Unlimited",
             "devices": batch.plan.max_devices,
-            "ssid": "Usimamizi-WiFi-Lab",
+            "ssid": ssid,
             "batch_ref": batch.reference,
-            "qr_url": f"{portal_base_url}/p/{batch.company.slug}?voucher={v.display_code}",
-            "instructions": "1. Connect to Usimamizi-WiFi-Lab\n2. Open login.usimamizi.lab\n3. Enter this voucher code"
+            "qr_url": f"{portal_base_url}/p/{portal_slug}?voucher={v.display_code}",
+            "instructions": f"1. Connect to {ssid}\n2. Open {domain_display}\n3. Enter this voucher code"
         })
 
     return cards

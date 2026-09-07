@@ -6,6 +6,8 @@ import {
   PublicPurchaseStatusResponse,
   PublicVoucherRedeemResponse,
   CustomerSessionStatus,
+  PortalHandoffStatus,
+  PublicPortalContextResponse,
 } from '../../types';
 import {
   Wifi,
@@ -53,7 +55,13 @@ export const CaptivePortalPage: React.FC = () => {
   const [plans, setPlans] = useState<PublicPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
-  const [lang, setLang] = useState<'EN' | 'SW'>('EN');
+  const [lang, setLang] = useState<'EN' | 'SW'>('SW');
+
+  // Context & handoff state
+  const [contextToken, setContextToken] = useState<string>('');
+  const [loginUrl, setLoginUrl] = useState<string>('');
+  const [destinationUrl, setDestinationUrl] = useState<string>('https://www.google.com');
+  const [handoffStatus, setHandoffStatus] = useState<PortalHandoffStatus>('IDLE');
 
   // Tab: 'buy' (Self-Service Mobile Money) or 'voucher' (Code Entry)
   const [activeTab, setActiveTab] = useState<'buy' | 'voucher'>('buy');
@@ -86,32 +94,88 @@ export const CaptivePortalPage: React.FC = () => {
   const routerFormRef = useRef<HTMLFormElement>(null);
   const [handoffCredentials, setHandoffCredentials] = useState<{ username: string; password: string; actionUrl: string } | null>(null);
 
-  // Fetch HotSpot config and packages
+  // Fetch HotSpot config and context
   const fetchHotspotConfigAndPlans = useCallback(async () => {
     if (!slug) return;
     try {
       setLoading(true);
       setNotFound(false);
-      const [portalRes, plansRes] = await Promise.all([
-        fetch(`/api/v1/public/hotspots/${slug}/portal/`),
-        fetch(`/api/v1/public/hotspots/${slug}/plans/`),
-      ]);
 
-      if (!portalRes.ok) {
-        setNotFound(true);
-        return;
-      }
-      const portalData: PublicHotspotConfig = await portalRes.json();
-      setHotspot(portalData);
-      if (portalData.default_language) {
-        setLang(portalData.default_language);
+      const linkLoginParam = searchParams.get('link-login') || searchParams.get('link-login-only') || '';
+      const linkOrigParam = searchParams.get('link-orig') || searchParams.get('dst') || '';
+      const macParam = searchParams.get('mac') || '';
+      const ipParam = searchParams.get('ip') || '';
+
+      const storageKey = `usimamizi_portal_ctx_${slug}`;
+      let cachedCtx: Record<string, string> | null = null;
+      try {
+        const raw = sessionStorage.getItem(storageKey);
+        if (raw) cachedCtx = JSON.parse(raw);
+      } catch {
+        // ignore
       }
 
-      if (plansRes.ok) {
-        const plansData: PublicPlan[] = await plansRes.json();
-        setPlans(plansData);
-        if (plansData.length > 0) {
-          setSelectedPlanId(plansData[0].id);
+      const payload = {
+        link_login: linkLoginParam || cachedCtx?.link_login || '',
+        link_orig: linkOrigParam || cachedCtx?.link_orig || '',
+        mac: macParam || cachedCtx?.mac || '',
+        ip: ipParam || cachedCtx?.ip || '',
+      };
+
+      const contextRes = await fetch(`/api/v1/public/hotspots/${slug}/portal-context/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (contextRes.ok) {
+        const ctxData: PublicPortalContextResponse = await contextRes.json();
+        setHotspot(ctxData.hotspot);
+        setPlans(ctxData.plans || []);
+        if (ctxData.plans && ctxData.plans.length > 0) {
+          setSelectedPlanId(ctxData.plans[0].id);
+        }
+        setContextToken(ctxData.context_token || '');
+        setLoginUrl(ctxData.login_url || '');
+        if (ctxData.session_context?.link_orig) {
+          setDestinationUrl(ctxData.session_context.link_orig);
+        }
+        if (ctxData.hotspot.default_language) {
+          setLang(ctxData.hotspot.default_language);
+        }
+        try {
+          sessionStorage.setItem(storageKey, JSON.stringify({
+            context_token: ctxData.context_token,
+            link_login: ctxData.login_url,
+            link_orig: ctxData.session_context?.link_orig,
+            mac: ctxData.session_context?.mac,
+            ip: ctxData.session_context?.ip,
+          }));
+        } catch {
+          // ignore
+        }
+      } else {
+        const [portalRes, plansRes] = await Promise.all([
+          fetch(`/api/v1/public/hotspots/${slug}/portal/`),
+          fetch(`/api/v1/public/hotspots/${slug}/plans/`),
+        ]);
+
+        if (!portalRes.ok) {
+          setNotFound(true);
+          return;
+        }
+        const portalData: PublicHotspotConfig = await portalRes.json();
+        setHotspot(portalData);
+        if (portalData.login_url) setLoginUrl(portalData.login_url);
+        if (portalData.context_token) setContextToken(portalData.context_token);
+        if (portalData.default_language) setLang(portalData.default_language);
+
+        if (plansRes.ok) {
+          const plansData: PublicPlan[] = await plansRes.json();
+          setPlans(plansData);
+          if (plansData.length > 0) {
+            setSelectedPlanId(plansData[0].id);
+          }
         }
       }
     } catch (err) {
@@ -120,7 +184,7 @@ export const CaptivePortalPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [slug]);
+  }, [slug, searchParams]);
 
   useEffect(() => {
     fetchHotspotConfigAndPlans();
@@ -132,6 +196,28 @@ export const CaptivePortalPage: React.FC = () => {
       routerFormRef.current.submit();
     }
   }, [handoffCredentials]);
+
+  // Safe router handoff trigger
+  const triggerHandoff = useCallback((username: string, password: string, actionUrlOverride?: string) => {
+    const targetActionUrl =
+      actionUrlOverride ||
+      loginUrl ||
+      routerLinkLogin ||
+      hotspot?.login_url ||
+      hotspot?.router_login_url ||
+      (hotspot?.gateway_ip ? `http://${hotspot.gateway_ip}/login` : 'http://10.5.50.1/login');
+
+    setHandoffStatus('ACTIVATING');
+    setHandoffCredentials({
+      username,
+      password,
+      actionUrl: targetActionUrl,
+    });
+
+    setTimeout(() => {
+      setHandoffStatus('CONNECTED');
+    }, 2200);
+  }, [loginUrl, routerLinkLogin, hotspot]);
 
   // Polling for active purchase
   useEffect(() => {
@@ -152,16 +238,20 @@ export const CaptivePortalPage: React.FC = () => {
                 voucher: accessCode,
                 planName: statusData.plan_name,
               });
-              const targetActionUrl = routerLinkLogin || hotspot.router_login_url || 'http://10.5.50.1/login';
-              setHandoffCredentials({
-                username: accessCode,
-                password: accessCode,
-                actionUrl: targetActionUrl,
-              });
+              const targetActionUrl =
+                statusData.router_login_url ||
+                loginUrl ||
+                routerLinkLogin ||
+                hotspot.login_url ||
+                hotspot.router_login_url;
+              triggerHandoff(accessCode, accessCode, targetActionUrl);
             }
           } else if (statusData.status === 'FAILED' || statusData.status === 'EXPIRED') {
             setIsPollingPurchase(false);
-            setPurchaseError(statusData.error_message || (lang === 'SW' ? 'Malipo yameshindikana. Tafadhali jaribu tena.' : 'Payment failed or timed out. Please try again.'));
+            setPurchaseError(
+              statusData.error_message ||
+              (lang === 'SW' ? 'Malipo yameshindikana. Tafadhali jaribu tena.' : 'Payment failed or timed out. Please try again.')
+            );
           }
         }
       } catch (pollErr) {
@@ -170,7 +260,7 @@ export const CaptivePortalPage: React.FC = () => {
     }, 2500);
 
     return () => clearInterval(interval);
-  }, [isPollingPurchase, activePurchase, hotspot, routerLinkLogin, lang]);
+  }, [isPollingPurchase, activePurchase, hotspot, routerLinkLogin, loginUrl, lang, triggerHandoff]);
 
   const handleVoucherChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let val = e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
@@ -195,6 +285,8 @@ export const CaptivePortalPage: React.FC = () => {
         body: JSON.stringify({
           voucher_code: voucherCode.trim(),
           language: lang,
+          context_token: contextToken,
+          link_login: loginUrl || routerLinkLogin,
         }),
       });
 
@@ -208,12 +300,12 @@ export const CaptivePortalPage: React.FC = () => {
           remainingDataBytes: data.remaining_data_bytes,
         });
 
-        const targetActionUrl = routerLinkLogin || data.router_login_url || hotspot.router_login_url || 'http://10.5.50.1/login';
-        setHandoffCredentials({
-          username: data.username,
-          password: data.password,
-          actionUrl: targetActionUrl,
-        });
+        const targetActionUrl =
+          data.router_login_url ||
+          loginUrl ||
+          hotspot.login_url ||
+          hotspot.router_login_url;
+        triggerHandoff(data.username, data.password, targetActionUrl);
       } else {
         setVoucherError(data.message || (lang === 'SW' ? 'Vocha si sahihi.' : 'Invalid voucher code.'));
       }
@@ -242,6 +334,8 @@ export const CaptivePortalPage: React.FC = () => {
         body: JSON.stringify({
           plan_id: selectedPlanId,
           customer_phone: customerPhone.trim(),
+          client_mac: searchParams.get('mac') || '',
+          ip_address: searchParams.get('ip') || null,
         }),
       });
 
@@ -334,6 +428,7 @@ export const CaptivePortalPage: React.FC = () => {
 
   const brandColor = hotspot.primary_color || '#2563eb';
   const brandName = hotspot.brand_name || hotspot.name || hotspot.company_name;
+  const gatewayHost = hotspot.gateway_ip || '10.5.50.1';
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between items-center p-4 sm:p-6 selection:bg-blue-600 selection:text-white">
@@ -343,7 +438,7 @@ export const CaptivePortalPage: React.FC = () => {
         <form ref={routerFormRef} target="router_login_frame" method="POST" action={handoffCredentials.actionUrl} className="hidden">
           <input type="hidden" name="username" value={handoffCredentials.username} />
           <input type="hidden" name="password" value={handoffCredentials.password} />
-          <input type="hidden" name="dst" value={searchParams.get('link-orig') || 'https://www.google.com'} />
+          <input type="hidden" name="dst" value={destinationUrl} />
         </form>
       )}
 
@@ -398,8 +493,75 @@ export const CaptivePortalPage: React.FC = () => {
             </p>
           </div>
 
-          {/* Connected State Screen */}
-          {connectedSession ? (
+          {/* Screen 1: Activation In-Progress State */}
+          {handoffStatus === 'ACTIVATING' ? (
+            <div className="space-y-4 pt-2 text-center animate-in fade-in zoom-in duration-200">
+              <div className="rounded-xl bg-blue-500/10 border border-blue-500/30 p-6 space-y-3">
+                <RefreshCw className="h-10 w-10 animate-spin text-blue-400 mx-auto" />
+                <h2 className="text-sm font-bold text-blue-300">
+                  {lang === 'SW' ? 'Inawasha Wi-Fi Yako…' : 'Activating Your Wi-Fi…'}
+                </h2>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  {lang === 'SW'
+                    ? 'Inatuma taarifa kwenye kisanduku cha mtandao. Tafadhali subiri sekunde chache…'
+                    : 'Connecting your device to the hotspot gateway. Please wait a moment…'}
+                </p>
+                {connectedSession?.voucher && (
+                  <div className="text-xs font-mono font-bold text-slate-300 bg-slate-950/60 py-1 px-3 rounded-md inline-block border border-slate-800">
+                    {connectedSession.voucher}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : handoffStatus === 'FAILED' ? (
+            /* Screen 2: Handoff Failure & Safe Retry State */
+            <div className="space-y-4 pt-1 animate-in fade-in zoom-in duration-200">
+              <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 p-5 text-center space-y-2.5">
+                <AlertCircle className="h-8 w-8 text-amber-400 mx-auto" />
+                <h2 className="text-sm font-bold text-amber-300">
+                  {lang === 'SW' ? 'Kifurushi Kiko Tayari' : 'Access Ready, Pending Router Handoff'}
+                </h2>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  {lang === 'SW'
+                    ? 'Kifurushi chako kimewezeshwa, lakini kisanduku hakijaunganisha kiotomatiki. Bonyeza kitufe hapa chini kurudia muunganisho bila malipo mapya.'
+                    : 'Your access pass is activated, but the router could not complete the connection automatically. Click below to retry.'}
+                </p>
+                {connectedSession?.voucher && (
+                  <div className="bg-slate-950/80 border border-slate-800 rounded-lg p-2.5 mt-2">
+                    <p className="text-[11px] text-slate-400 font-medium">
+                      {lang === 'SW' ? 'Nambari Yako ya Kuingia:' : 'Your Access Passcode:'}
+                    </p>
+                    <p className="text-sm font-mono font-bold text-blue-400 tracking-wider">
+                      {connectedSession.voucher}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (connectedSession) {
+                      triggerHandoff(connectedSession.voucher, connectedSession.voucher);
+                    }
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md transition-all"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  <span>{lang === 'SW' ? 'Rudia Kuunganisha (Retry)' : 'Retry Connection'}</span>
+                </button>
+
+                <a
+                  href={`/p/${slug}/account`}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 text-xs font-semibold transition-colors"
+                >
+                  <span>{lang === 'SW' ? 'Fungua Akaunti Yangu' : 'Go to My Account'}</span>
+                </a>
+              </div>
+            </div>
+          ) : connectedSession && (handoffStatus === 'CONNECTED' || handoffStatus === 'IDLE') ? (
+            /* Screen 3: Connected State Screen */
             <div className="space-y-4 pt-1 animate-in fade-in zoom-in duration-200">
               <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-4 text-center space-y-2">
                 <CheckCircle2 className="h-8 w-8 text-emerald-400 mx-auto" />
@@ -449,7 +611,7 @@ export const CaptivePortalPage: React.FC = () => {
 
               <div className="space-y-2 pt-1">
                 <a
-                  href="https://www.google.com"
+                  href={destinationUrl || 'https://www.google.com'}
                   target="_blank"
                   rel="noreferrer"
                   className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md transition-all"
@@ -461,18 +623,18 @@ export const CaptivePortalPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    if (handoffCredentials && routerFormRef.current) {
-                      routerFormRef.current.submit();
+                    if (connectedSession) {
+                      triggerHandoff(connectedSession.voucher, connectedSession.voucher);
                     }
                   }}
                   className="w-full flex items-center justify-center gap-1.5 py-1.5 text-slate-400 hover:text-slate-200 text-[11px] font-medium"
                 >
                   <RefreshCw className="h-3 w-3 text-blue-400" />
-                  <span>{lang === 'SW' ? 'Rudia kuunganisha kwenye Kisanduku' : 'Re-send Router Login'}</span>
+                  <span>{lang === 'SW' ? 'Rudia kutuma muunganisho kwa Kisanduku' : 'Re-send Router Login'}</span>
                 </button>
 
                 <a
-                  href="http://10.5.50.1/logout"
+                  href={`http://${gatewayHost}/logout`}
                   className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 text-xs font-semibold transition-colors"
                 >
                   <Power className="h-3.5 w-3.5" />
@@ -490,18 +652,26 @@ export const CaptivePortalPage: React.FC = () => {
                 </button>
 
                 <a
-                  href="http://10.5.50.1/status"
+                  href={`http://${gatewayHost}/status`}
                   target="_blank"
                   rel="noreferrer"
                   className="w-full flex items-center justify-center gap-1.5 py-1 text-slate-500 hover:text-slate-300 text-[10px] font-medium underline underline-offset-2"
                 >
                   <Activity className="h-3 w-3 text-emerald-400" />
-                  <span>{lang === 'SW' ? 'Ukurasa wa Moja kwa Moja wa Router (10.5.50.1/status)' : 'Router Live Status Page (10.5.50.1/status)'}</span>
+                  <span>{lang === 'SW' ? `Ukurasa wa Moja kwa Moja wa Router (${gatewayHost}/status)` : `Router Live Status Page (${gatewayHost}/status)`}</span>
                 </a>
+
+                <button
+                  type="button"
+                  onClick={() => setHandoffStatus('FAILED')}
+                  className="w-full py-1 text-slate-500 hover:text-amber-400 text-[10px] font-medium transition-colors"
+                >
+                  {lang === 'SW' ? 'Tatizo la kuunganisha? Bonyeza hapa' : 'Trouble connecting? Click here'}
+                </button>
               </div>
             </div>
           ) : activePurchase && isPollingPurchase ? (
-            /* USSD Payment Prompt & Polling Screen */
+            /* Screen 4: USSD Payment Prompt & Polling Screen */
             <div className="space-y-4 pt-1 text-center animate-in fade-in duration-200">
               <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/30 space-y-3">
                 <div className="relative w-12 h-12 mx-auto flex items-center justify-center">
@@ -552,7 +722,7 @@ export const CaptivePortalPage: React.FC = () => {
               </button>
             </div>
           ) : (
-            /* Purchase vs Voucher Tabs */
+            /* Screen 5: Purchase vs Voucher Tabs */
             <div className="space-y-4">
               <div className="flex rounded-xl bg-slate-950 p-1 border border-slate-800">
                 <button

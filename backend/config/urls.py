@@ -36,6 +36,8 @@ urlpatterns = [
         path('', include('apps.vouchers.api.urls')),
         path('', include('apps.notifications.api.urls')),
         path('radius/', include('apps.radius.api.urls')),
+        path('locations/', include('apps.locations.api.urls')),
+        path('routers/', include('apps.routers.api.urls')),
         path('payments/', include('apps.payments.api.urls')),
         path('public/', include('apps.payments.api.public_urls')),
         path('', include('apps.customers.api.urls')),

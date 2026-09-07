@@ -5,7 +5,7 @@ from rest_framework.views import APIView
 
 import logging
 
-from apps.companies.services.portal_services import resolve_hotspot_by_slug
+from apps.companies.services.portal_services import get_plans_for_hotspot, resolve_hotspot_by_slug
 from apps.payments.api.serializers import (
     InitiatePurchaseSerializer,
     PublicPlanSerializer,
@@ -39,7 +39,7 @@ class PublicHotspotPlansView(APIView):
                 "detail": "Wi-Fi HotSpot configuration not found."
             }, status=status.HTTP_404_NOT_FOUND)
 
-        plans = Plan.objects.filter(company=hotspot.company, is_active=True).order_by('price')
+        plans = get_plans_for_hotspot(hotspot, include_inactive=False).order_by('price')
         serializer = PublicPlanSerializer(plans, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -69,11 +69,12 @@ class PublicInitiatePurchaseView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
-        plan = Plan.objects.filter(id=data['plan_id'], company=hotspot.company, is_active=True).first()
+        available_plans = get_plans_for_hotspot(hotspot, include_inactive=False)
+        plan = available_plans.filter(id=data['plan_id']).first()
         if not plan:
             return Response({
                 "code": "PLAN_NOT_FOUND",
-                "detail": "The selected plan does not exist or is no longer active."
+                "detail": "The selected plan is not available on this HotSpot or is no longer active."
             }, status=status.HTTP_404_NOT_FOUND)
 
         try:

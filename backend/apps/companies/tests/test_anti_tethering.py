@@ -204,10 +204,10 @@ def test_legacy_rule_adoption_and_idempotence(anti_tether_setup):
     success, msg, _ = apply_anti_tethering_policy(policy, hotspot, client_factory=lambda: mock_client)
     assert success is True
     assert len(mock_client.mangle_rules) == 1
-    assert mock_client.mangle_rules[0]['comment'] == TAG_TTL_LOCK
+    assert mock_client.mangle_rules[0]['comment'] in (TAG_TTL_LOCK, f"{TAG_TTL_LOCK}:{hotspot.id}")
     assert len(mock_client.filter_rules) == 2
-    assert any(r['comment'] == TAG_TTL_63 for r in mock_client.filter_rules)
-    assert any(r['comment'] == TAG_TTL_127 for r in mock_client.filter_rules)
+    assert any(r['comment'] in (TAG_TTL_63, f"{TAG_TTL_63}:{hotspot.id}") for r in mock_client.filter_rules)
+    assert any(r['comment'] in (TAG_TTL_127, f"{TAG_TTL_127}:{hotspot.id}") for r in mock_client.filter_rules)
 
     # Second sync: idempotent, must NOT duplicate rules
     success2, msg2, _ = apply_anti_tethering_policy(policy, hotspot, client_factory=lambda: mock_client)

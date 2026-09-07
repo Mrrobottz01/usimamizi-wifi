@@ -5,13 +5,13 @@ from typing import Any, Dict, List, Optional, Tuple
 from django.utils import timezone
 
 from apps.audit.models import AuditLog
+from apps.routers.services.router_client import RouterOSAPIClient, RouterOSError
 from ..models import AntiTetheringPolicy, Company, HotspotConfiguration, IPv6Policy
 from .uplink_services import (
     ROUTER_API_PORT,
     ROUTER_IP_DEFAULT,
     ROUTER_PASS_DEFAULT,
     ROUTER_USER_DEFAULT,
-    RouterOSAPIClient,
 )
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,11 @@ SERVER_IP_EXCLUDE = "10.5.50.254"
 DEFAULT_INTERFACE = "bridgeLocal"
 
 
-def get_router_credentials() -> Tuple[str, int, str, str]:
+def get_router_credentials(hotspot: Optional[HotspotConfiguration] = None) -> Tuple[str, int, str, str]:
+    if hotspot and getattr(hotspot, 'router', None) and hotspot.router.has_credentials:
+        router = hotspot.router
+        return str(router.management_ip), router.api_port, router.api_username, router.api_password
+
     host = os.getenv('MIKROTIK_HOST', ROUTER_IP_DEFAULT)
     port = int(os.getenv('MIKROTIK_PORT', str(ROUTER_API_PORT)))
     user = os.getenv('MIKROTIK_USER', ROUTER_USER_DEFAULT)
@@ -72,6 +76,34 @@ def _is_legacy_ttl_127(comment: str) -> bool:
     return any(marker.lower() in comment.lower() for marker in LEGACY_TTL_127_MARKERS)
 
 
+def get_hotspot_rule_tag(base_tag: str, hotspot: HotspotConfiguration) -> str:
+    return f"{base_tag}:{hotspot.id}"
+
+
+def matches_ttl_lock_tag(comment: str, hotspot: HotspotConfiguration) -> bool:
+    if comment == get_hotspot_rule_tag(TAG_TTL_LOCK, hotspot):
+        return True
+    if getattr(hotspot, 'is_default', False) or (hasattr(hotspot, 'company') and hotspot.company.hotspots.count() <= 1):
+        return comment == TAG_TTL_LOCK or _is_legacy_ttl_lock(comment)
+    return False
+
+
+def matches_ttl_63_tag(comment: str, hotspot: HotspotConfiguration) -> bool:
+    if comment == get_hotspot_rule_tag(TAG_TTL_63, hotspot):
+        return True
+    if getattr(hotspot, 'is_default', False) or (hasattr(hotspot, 'company') and hotspot.company.hotspots.count() <= 1):
+        return comment == TAG_TTL_63 or _is_legacy_ttl_63(comment)
+    return False
+
+
+def matches_ttl_127_tag(comment: str, hotspot: HotspotConfiguration) -> bool:
+    if comment == get_hotspot_rule_tag(TAG_TTL_127, hotspot):
+        return True
+    if getattr(hotspot, 'is_default', False) or (hasattr(hotspot, 'company') and hotspot.company.hotspots.count() <= 1):
+        return comment == TAG_TTL_127 or _is_legacy_ttl_127(comment)
+    return False
+
+
 def get_anti_tethering_status(
     hotspot: HotspotConfiguration,
     client_factory=None
@@ -80,7 +112,7 @@ def get_anti_tethering_status(
     Query RouterOS live and evaluate policy synchronization state.
     """
     policy = get_or_create_anti_tethering_policy(hotspot)
-    host, port, user, password = get_router_credentials()
+    host, port, user, password = get_router_credentials(hotspot)
 
     res: Dict[str, Any] = {
         'status': 'UNKNOWN',
@@ -96,7 +128,12 @@ def get_anti_tethering_status(
 
     client = None
     try:
-        client = client_factory() if client_factory else RouterOSAPIClient(host=host, port=port, user=user, password=password, timeout=3.0)
+        if client_factory:
+            client = client_factory()
+        elif getattr(hotspot, 'router', None) and hotspot.router.has_credentials:
+            client = RouterOSAPIClient.for_router(hotspot.router, timeout=3.0)
+        else:
+            client = RouterOSAPIClient(host=host, port=port, user=user, password=password, timeout=3.0)
         client.connect()
         res['router_reachable'] = True
 
@@ -104,7 +141,7 @@ def get_anti_tethering_status(
         mangle_rules = client.query('/ip/firewall/mangle/print')
         for r in mangle_rules:
             comment = r.get('comment', '')
-            if comment == TAG_TTL_LOCK or _is_legacy_ttl_lock(comment):
+            if matches_ttl_lock_tag(comment, hotspot):
                 res['rules_found'] += 1
                 if r.get('disabled') != 'true' and r.get('action') == 'change-ttl':
                     res['ttl_lock_active'] = True
@@ -120,7 +157,7 @@ def get_anti_tethering_status(
         filter_rules = client.query('/ip/firewall/filter/print')
         for r in filter_rules:
             comment = r.get('comment', '')
-            if comment == TAG_TTL_63 or _is_legacy_ttl_63(comment):
+            if matches_ttl_63_tag(comment, hotspot):
                 res['rules_found'] += 1
                 if r.get('disabled') != 'true' and r.get('action') == 'drop':
                     res['ttl_63_active'] = True
@@ -129,7 +166,7 @@ def get_anti_tethering_status(
                         'packets': int(r.get('packets', 0)),
                         'bytes': int(r.get('bytes', 0)),
                     }
-            elif comment == TAG_TTL_127 or _is_legacy_ttl_127(comment):
+            elif matches_ttl_127_tag(comment, hotspot):
                 res['rules_found'] += 1
                 if r.get('disabled') != 'true' and r.get('action') == 'drop':
                     res['ttl_127_active'] = True
@@ -179,7 +216,7 @@ def get_anti_tethering_counters(
     """
     Fetch live packet and byte counters from RouterOS for anti-tethering rules.
     """
-    host, port, user, password = get_router_credentials()
+    host, port, user, password = get_router_credentials(hotspot)
     counters: Dict[str, Any] = {
         'ttl_lock': {'packets': 0, 'bytes': 0, 'active': False},
         'ttl_63': {'packets': 0, 'bytes': 0, 'active': False},
@@ -191,14 +228,19 @@ def get_anti_tethering_counters(
 
     client = None
     try:
-        client = client_factory() if client_factory else RouterOSAPIClient(host=host, port=port, user=user, password=password, timeout=3.0)
+        if client_factory:
+            client = client_factory()
+        elif getattr(hotspot, 'router', None) and hotspot.router.has_credentials:
+            client = RouterOSAPIClient.for_router(hotspot.router, timeout=3.0)
+        else:
+            client = RouterOSAPIClient(host=host, port=port, user=user, password=password, timeout=3.0)
         client.connect()
         counters['router_reachable'] = True
 
         mangle_rules = client.query('/ip/firewall/mangle/print')
         for r in mangle_rules:
             comment = r.get('comment', '')
-            if comment == TAG_TTL_LOCK or _is_legacy_ttl_lock(comment):
+            if matches_ttl_lock_tag(comment, hotspot):
                 counters['ttl_lock'] = {
                     'packets': int(r.get('packets', 0)),
                     'bytes': int(r.get('bytes', 0)),
@@ -209,7 +251,7 @@ def get_anti_tethering_counters(
         filter_rules = client.query('/ip/firewall/filter/print')
         for r in filter_rules:
             comment = r.get('comment', '')
-            if comment == TAG_TTL_63 or _is_legacy_ttl_63(comment):
+            if matches_ttl_63_tag(comment, hotspot):
                 pkts = int(r.get('packets', 0))
                 bts = int(r.get('bytes', 0))
                 counters['ttl_63'] = {
@@ -219,7 +261,7 @@ def get_anti_tethering_counters(
                 }
                 counters['total_blocked_packets'] += pkts
                 counters['total_blocked_bytes'] += bts
-            elif comment == TAG_TTL_127 or _is_legacy_ttl_127(comment):
+            elif matches_ttl_127_tag(comment, hotspot):
                 pkts = int(r.get('packets', 0))
                 bts = int(r.get('bytes', 0))
                 counters['ttl_127'] = {
@@ -248,24 +290,39 @@ def apply_anti_tethering_policy(
     Idempotently sync and enforce Anti-Tethering rules on RouterOS.
     Adopts existing legacy rules without creating duplicates.
     """
-    host, port, user, password = get_router_credentials()
+    host, port, user, password = get_router_credentials(hotspot)
     client = None
 
     try:
-        client = client_factory() if client_factory else RouterOSAPIClient(host=host, port=port, user=user, password=password, timeout=4.0)
+        if client_factory:
+            client = client_factory()
+        elif getattr(hotspot, 'router', None) and hotspot.router.has_credentials:
+            client = RouterOSAPIClient.for_router(hotspot.router, timeout=4.0)
+        else:
+            client = RouterOSAPIClient(host=host, port=port, user=user, password=password, timeout=4.0)
         client.connect()
 
         # Step 1: Pre-flight interface check
         interfaces = client.query('/interface/print')
         interface_names = [i.get('name') for i in interfaces]
-        target_interface = DEFAULT_INTERFACE if DEFAULT_INTERFACE in interface_names else (interface_names[0] if interface_names else 'bridgeLocal')
+        configured_iface = getattr(hotspot, 'interface_name', None) or DEFAULT_INTERFACE
+        if configured_iface in interface_names:
+            target_interface = configured_iface
+        elif DEFAULT_INTERFACE in interface_names:
+            target_interface = DEFAULT_INTERFACE
+        else:
+            target_interface = interface_names[0] if interface_names else 'bridgeLocal'
+
+        tag_ttl_lock = get_hotspot_rule_tag(TAG_TTL_LOCK, hotspot)
+        tag_ttl_63 = get_hotspot_rule_tag(TAG_TTL_63, hotspot)
+        tag_ttl_127 = get_hotspot_rule_tag(TAG_TTL_127, hotspot)
 
         # Step 2: Manage TTL Lock in /ip/firewall/mangle
         existing_mangle = client.query('/ip/firewall/mangle/print')
         ttl_lock_rule = None
         for r in existing_mangle:
             comment = r.get('comment', '')
-            if comment == TAG_TTL_LOCK or _is_legacy_ttl_lock(comment):
+            if matches_ttl_lock_tag(comment, hotspot):
                 ttl_lock_rule = r
                 break
 
@@ -276,7 +333,7 @@ def apply_anti_tethering_policy(
                 rule_id = ttl_lock_rule['.id']
                 client.execute('/ip/firewall/mangle/set', [
                     f'=.id={rule_id}',
-                    f'=comment={TAG_TTL_LOCK}',
+                    f'=comment={tag_ttl_lock}',
                     f'=new-ttl={expected_new_ttl}',
                     '=disabled=false',
                     f'=out-interface={target_interface}',
@@ -292,7 +349,7 @@ def apply_anti_tethering_policy(
                     '=action=change-ttl',
                     f'=new-ttl={expected_new_ttl}',
                     '=passthrough=yes',
-                    f'=comment={TAG_TTL_LOCK}',
+                    f'=comment={tag_ttl_lock}',
                     '=disabled=false',
                 ])
         else:
@@ -306,9 +363,9 @@ def apply_anti_tethering_policy(
         ttl_127_rule = None
         for r in existing_filter:
             comment = r.get('comment', '')
-            if comment == TAG_TTL_63 or _is_legacy_ttl_63(comment):
+            if matches_ttl_63_tag(comment, hotspot):
                 ttl_63_rule = r
-            elif comment == TAG_TTL_127 or _is_legacy_ttl_127(comment):
+            elif matches_ttl_127_tag(comment, hotspot):
                 ttl_127_rule = r
 
         if policy.enabled and policy.detect_ttl_63:
@@ -316,7 +373,7 @@ def apply_anti_tethering_policy(
                 rid = ttl_63_rule['.id']
                 client.execute('/ip/firewall/filter/set', [
                     f'=.id={rid}',
-                    f'=comment={TAG_TTL_63}',
+                    f'=comment={tag_ttl_63}',
                     '=ttl=equal:63',
                     f'=in-interface={target_interface}',
                     '=action=drop',
@@ -328,7 +385,7 @@ def apply_anti_tethering_policy(
                     f'=in-interface={target_interface}',
                     '=ttl=equal:63',
                     '=action=drop',
-                    f'=comment={TAG_TTL_63}',
+                    f'=comment={tag_ttl_63}',
                     '=disabled=false',
                 ])
         else:
@@ -342,7 +399,7 @@ def apply_anti_tethering_policy(
                 rid = ttl_127_rule['.id']
                 client.execute('/ip/firewall/filter/set', [
                     f'=.id={rid}',
-                    f'=comment={TAG_TTL_127}',
+                    f'=comment={tag_ttl_127}',
                     '=ttl=equal:127',
                     f'=in-interface={target_interface}',
                     '=action=drop',
@@ -354,7 +411,7 @@ def apply_anti_tethering_policy(
                     f'=in-interface={target_interface}',
                     '=ttl=equal:127',
                     '=action=drop',
-                    f'=comment={TAG_TTL_127}',
+                    f'=comment={tag_ttl_127}',
                     '=disabled=false',
                 ])
         else:
@@ -380,18 +437,23 @@ def remove_anti_tethering_policy(
     Remove all Usimamizi-managed anti-tethering rules from RouterOS.
     Leaves unrelated firewall rules completely untouched.
     """
-    host, port, user, password = get_router_credentials()
+    host, port, user, password = get_router_credentials(hotspot)
     client = None
 
     try:
-        client = client_factory() if client_factory else RouterOSAPIClient(host=host, port=port, user=user, password=password, timeout=4.0)
+        if client_factory:
+            client = client_factory()
+        elif getattr(hotspot, 'router', None) and hotspot.router.has_credentials:
+            client = RouterOSAPIClient.for_router(hotspot.router, timeout=4.0)
+        else:
+            client = RouterOSAPIClient(host=host, port=port, user=user, password=password, timeout=4.0)
         client.connect()
 
         # Remove mangle rule
         mangles = client.query('/ip/firewall/mangle/print')
         for r in mangles:
             comment = r.get('comment', '')
-            if comment == TAG_TTL_LOCK or _is_legacy_ttl_lock(comment):
+            if matches_ttl_lock_tag(comment, hotspot):
                 rid = r['.id']
                 client.execute('/ip/firewall/mangle/remove', [f'=.id={rid}'])
 
@@ -399,7 +461,7 @@ def remove_anti_tethering_policy(
         filters = client.query('/ip/firewall/filter/print')
         for r in filters:
             comment = r.get('comment', '')
-            if comment in (TAG_TTL_63, TAG_TTL_127) or _is_legacy_ttl_63(comment) or _is_legacy_ttl_127(comment):
+            if matches_ttl_63_tag(comment, hotspot) or matches_ttl_127_tag(comment, hotspot):
                 rid = r['.id']
                 client.execute('/ip/firewall/filter/remove', [f'=.id={rid}'])
 

@@ -20,6 +20,7 @@ import {
   X,
   CheckCircle2,
   XCircle,
+  Smartphone,
 } from 'lucide-react';
 
 function formatBytes(bytes: number): string {
@@ -269,7 +270,7 @@ export const ActiveSessionsPage: React.FC = () => {
                 <thead>
                   <tr className="border-b border-border bg-muted/40 text-muted-foreground font-semibold uppercase tracking-wider">
                     <th className="py-3 px-4">User / Access Code</th>
-                    <th className="py-3 px-4">Device MAC & IP</th>
+                    <th className="py-3 px-4">Device & IP</th>
                     <th className="py-3 px-4">Plan</th>
                     <th className="py-3 px-4">NAS / Router</th>
                     <th className="py-3 px-4">Status</th>
@@ -286,7 +287,11 @@ export const ActiveSessionsPage: React.FC = () => {
                         <div className="text-[11px] text-muted-foreground font-mono">{sess.entitlement_reference}</div>
                       </td>
                       <td className="py-3 px-4">
-                        <div className="font-mono font-medium text-foreground">{sess.mac_address}</div>
+                        <div className="flex items-center gap-1.5 font-medium text-foreground">
+                          <Smartphone className="h-3.5 w-3.5 text-primary shrink-0" />
+                          <span className="font-semibold text-sm">{sess.device_name || 'Generic Device'}</span>
+                        </div>
+                        <div className="font-mono text-[11px] text-muted-foreground mt-0.5">{sess.mac_address}</div>
                         <div className="text-[11px] text-muted-foreground font-mono">{sess.ip_address || '—'}</div>
                       </td>
                       <td className="py-3 px-4">
@@ -360,7 +365,11 @@ export const ActiveSessionsPage: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="font-mono font-bold text-sm text-foreground">{sess.username}</div>
-                      <div className="text-xs text-muted-foreground font-mono">{sess.mac_address}</div>
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground mt-0.5">
+                        <Smartphone className="h-3 w-3 text-primary shrink-0" />
+                        <span>{sess.device_name || 'Generic Device'}</span>
+                      </div>
+                      <div className="text-[11px] text-muted-foreground font-mono mt-0.5">{sess.mac_address} • {sess.ip_address || '—'}</div>
                     </div>
                     <div className="flex items-center gap-1">
                       {getStatusBadge(sess.status)}

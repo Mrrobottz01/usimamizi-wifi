@@ -1,0 +1,3 @@
+"""
+Locations migrations package.
+"""

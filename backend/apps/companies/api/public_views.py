@@ -6,12 +6,19 @@ from rest_framework.views import APIView
 from apps.companies.permissions import IsCompanyMember
 from apps.companies.selectors.company_selectors import get_company_by_id
 from apps.companies.services.portal_services import (
+    create_signed_portal_context,
     get_customer_error_message,
+    get_default_hotspot,
+    get_hotspot_login_url,
     get_or_create_default_hotspot,
+    get_plans_for_hotspot,
     resolve_hotspot_by_slug,
     validate_and_redeem_portal_voucher,
+    validate_destination_url,
+    verify_signed_portal_context,
 )
 from apps.hotspot_sessions.models import HotspotSession, SessionStatus
+from apps.payments.api.serializers import PublicPlanSerializer
 
 from .public_serializers import (
     AdminHotspotSettingsSerializer,
@@ -42,8 +49,81 @@ class PublicHotspotPortalConfigView(APIView):
                 "detail": "This Wi-Fi HotSpot is currently disabled."
             }, status=status.HTTP_403_FORBIDDEN)
 
+        context_token = create_signed_portal_context(hotspot, request.query_params.dict())
+        login_url = get_hotspot_login_url(hotspot, request.query_params.dict())
+
         serializer = PublicHotspotConfigSerializer(hotspot)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        data = serializer.data
+        data['context_token'] = context_token
+        data['login_url'] = login_url
+        return Response(data, status=status.HTTP_200_OK)
+
+
+class PublicHotspotPortalContextView(APIView):
+    """
+    POST /api/v1/public/hotspots/{slug}/portal-context/
+    Initialize or refresh captive portal session context.
+    Accepts runtime parameters sent by MikroTik HotSpot redirect:
+      - link-login / link_login
+      - link-orig / dst / link_orig
+      - mac
+      - ip
+    Returns:
+      - hotspot branding data
+      - plans
+      - validated login_url
+      - gateway_ip
+      - signed context_token
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request, slug):
+        hotspot = resolve_hotspot_by_slug(slug)
+        if not hotspot:
+            return Response({
+                "code": "HOTSPOT_NOT_FOUND",
+                "detail": "Wi-Fi HotSpot configuration not found."
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        if not hotspot.is_active:
+            return Response({
+                "code": "HOTSPOT_INACTIVE",
+                "detail": "This Wi-Fi HotSpot is currently disabled."
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        raw_params = {}
+        raw_params.update(request.query_params.dict())
+        if isinstance(request.data, dict):
+            raw_params.update(request.data)
+
+        runtime_params = {
+            'link-login': raw_params.get('link-login') or raw_params.get('link_login') or raw_params.get('link-login-only') or '',
+            'link-orig': raw_params.get('link-orig') or raw_params.get('link_orig') or raw_params.get('dst') or '',
+            'mac': raw_params.get('mac') or '',
+            'ip': raw_params.get('ip') or '',
+        }
+
+        context_token = create_signed_portal_context(hotspot, runtime_params)
+        login_url = get_hotspot_login_url(hotspot, runtime_params)
+
+        plans = get_plans_for_hotspot(hotspot, include_inactive=False).order_by('price')
+        plans_data = PublicPlanSerializer(plans, many=True).data
+
+        hotspot_serializer = PublicHotspotConfigSerializer(hotspot)
+
+        return Response({
+            "hotspot": hotspot_serializer.data,
+            "login_url": login_url,
+            "gateway_ip": hotspot.gateway_ip or "",
+            "context_token": context_token,
+            "session_context": {
+                "mac": (runtime_params.get('mac') or '').strip().upper(),
+                "ip": (runtime_params.get('ip') or '').strip(),
+                "link_orig": validate_destination_url(runtime_params.get('link-orig', '')),
+                "gateway_ip": hotspot.gateway_ip or "",
+            },
+            "plans": plans_data,
+        }, status=status.HTTP_200_OK)
 
 
 class PublicHotspotVoucherRedeemView(APIView):
@@ -69,12 +149,23 @@ class PublicHotspotVoucherRedeemView(APIView):
         voucher_code = serializer.validated_data['voucher_code']
         customer_phone = serializer.validated_data.get('customer_phone')
         language = serializer.validated_data.get('language', hotspot.default_language or 'EN')
+        context_token = serializer.validated_data.get('context_token')
+        link_login = serializer.validated_data.get('link_login')
+
+        runtime_context = {}
+        if context_token:
+            decoded_context = verify_signed_portal_context(context_token, hotspot)
+            if decoded_context:
+                runtime_context.update(decoded_context)
+        if link_login:
+            runtime_context['link-login'] = link_login
 
         result = validate_and_redeem_portal_voucher(
             hotspot=hotspot,
             voucher_code=voucher_code,
             customer_phone=customer_phone,
-            lang=language
+            lang=language,
+            runtime_context=runtime_context,
         )
 
         http_status = status.HTTP_200_OK if result.get("success") else status.HTTP_400_BAD_REQUEST
@@ -152,8 +243,9 @@ class PublicHotspotStatusView(APIView):
 
 class HotspotSettingsAdminView(APIView):
     """
-    GET, PUT /api/v1/settings/hotspot/?company_id={uuid}
-    Admin endpoint to view and update HotSpot branding and portal configuration.
+    [LEGACY/DEPRECATED] GET, PUT /api/v1/settings/hotspot/?company_id={uuid}
+    Admin endpoint to view and update default HotSpot branding and portal configuration.
+    New integrations should use /api/v1/hotspots/ and /api/v1/hotspots/<id>/.
     """
     permission_classes = [IsAuthenticated, IsCompanyMember]
 
@@ -168,7 +260,10 @@ class HotspotSettingsAdminView(APIView):
 
         self.check_object_permissions(request, company)
 
-        hotspot = get_or_create_default_hotspot(company)
+        hotspot = get_default_hotspot(company)
+        if not hotspot:
+            return Response({"code": "default_hotspot_not_configured", "detail": "No default hotspot configured for company."}, status=status.HTTP_404_NOT_FOUND)
+
         return Response(AdminHotspotSettingsSerializer(hotspot).data, status=status.HTTP_200_OK)
 
     def put(self, request):
@@ -182,7 +277,10 @@ class HotspotSettingsAdminView(APIView):
 
         self.check_object_permissions(request, company)
 
-        hotspot = get_or_create_default_hotspot(company)
+        hotspot = get_default_hotspot(company)
+        if not hotspot:
+            hotspot = get_or_create_default_hotspot(company)
+
         serializer = AdminHotspotSettingsSerializer(hotspot, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()

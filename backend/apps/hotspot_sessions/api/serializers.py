@@ -45,6 +45,7 @@ class HotspotSessionSerializer(serializers.ModelSerializer):
     radius_client_name = serializers.SerializerMethodField()
     total_bytes = serializers.ReadOnlyField()
     latest_disconnect_status = serializers.SerializerMethodField()
+    device_name = serializers.SerializerMethodField()
 
     class Meta:
         model = HotspotSession
@@ -54,6 +55,7 @@ class HotspotSessionSerializer(serializers.ModelSerializer):
             'username',
             'mac_address',
             'ip_address',
+            'device_name',
             'status',
             'entitlement_id',
             'entitlement_reference',
@@ -83,3 +85,10 @@ class HotspotSessionSerializer(serializers.ModelSerializer):
     def get_latest_disconnect_status(self, obj) -> str:
         latest = obj.disconnect_requests.first()
         return latest.status if latest else ''
+
+    def get_device_name(self, obj) -> str:
+        if obj.device_name:
+            return obj.device_name
+        if obj.device and obj.device.device_name:
+            return obj.device.device_name
+        return ''

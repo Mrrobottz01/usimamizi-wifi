@@ -2,93 +2,92 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Usimamizi Wi-Fi — Captive Portal</title>
-  <link rel="stylesheet" href="style.css">
-  <script>
-    // SaaS Centralized Portal Target URL
-    var saasPortalBase = "http://10.5.50.254:5173/p/usimamizi-lab";
-    var routerParams = "?link-login=" + encodeURIComponent("$(link-login-only)") +
-                       "&mac=" + encodeURIComponent("$(mac)") +
-                       "&ip=" + encodeURIComponent("$(ip)") +
-                       "&link-orig=" + encodeURIComponent("$(link-orig)");
-    
-    // Automatically redirect browser to SaaS portal if reachable
-    if (window.location.search.indexOf("noredirect=true") === -1) {
-      window.location.href = saasPortalBase + routerParams;
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta http-equiv="refresh" content="0; url=http://10.5.50.253:5173/p/usimamizi-lab?link-login=$(link-login-only)&link-orig=$(link-orig)&mac=$(mac)&ip=$(ip)&error=$(error-esc)">
+  <title>Usimamizi Wi-Fi</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
     }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #0b0f19;
+      color: #f1f5f9;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      text-align: center;
+      padding: 24px;
+    }
+    .portal-card {
+      max-width: 380px;
+      width: 100%;
+      background: #111827;
+      border: 1px solid #1f2937;
+      border-radius: 16px;
+      padding: 32px 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    }
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 3px solid rgba(59, 130, 246, 0.2);
+      border-radius: 50%;
+      border-top-color: #3b82f6;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 20px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    h2 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: #ffffff;
+    }
+    p {
+      font-size: 13px;
+      color: #94a3b8;
+      margin-bottom: 20px;
+      line-height: 1.4;
+    }
+    .redirect-btn {
+      display: inline-block;
+      width: 100%;
+      padding: 12px 20px;
+      background-color: #2563eb;
+      color: #ffffff;
+      text-decoration: none;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 700;
+      transition: background-color 0.2s;
+    }
+    .redirect-btn:hover {
+      background-color: #1d4ed8;
+    }
+  </style>
+  <script type="text/javascript">
+    var dest = "http://10.5.50.253:5173/p/usimamizi-lab?link-login=" + encodeURIComponent("$(link-login-only)") + "&link-orig=" + encodeURIComponent("$(link-orig)") + "&mac=$(mac)&ip=$(ip)&error=" + encodeURIComponent("$(error-esc)");
+    window.location.replace(dest);
   </script>
 </head>
 <body>
-  <div class="portal-container">
-    <div class="header">
-      <div class="logo-icon">
-        <svg viewBox="0 0 24 24">
-          <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
-          <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
-          <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
-          <line x1="12" y1="20" x2="12.01" y2="20"></line>
-        </svg>
-      </div>
-      <h1>Usimamizi Wi-Fi Lab</h1>
-      <p class="subtitle">Redirecting to customer portal…</p>
-    </div>
-
-    $(if error)
-    <div class="alert alert-error">
-      $(error)
-    </div>
-    $(endif)
-
-    <div style="text-align: center; margin: 20px 0;">
-      <a href="http://10.5.50.254:5173/p/usimamizi-lab" class="btn-submit" style="display:inline-block; text-decoration:none; text-align:center;">
-        Open Customer Access Portal
-      </a>
-    </div>
-
-    <!-- Fallback Local Login Form -->
-    <details style="margin-top: 20px; font-size: 12px; color: #64748b;">
-      <summary style="cursor: pointer; padding: 6px;">Direct Router Login Fallback</summary>
-      <form name="login" action="$(link-login-only)" method="post" onSubmit="return doLogin()" style="margin-top: 10px;">
-        <input type="hidden" name="dst" value="$(link-orig)" />
-        <input type="hidden" name="popup" value="true" />
-        <input type="hidden" name="username" id="username_hidden" value="" />
-        <input type="hidden" name="password" id="password_hidden" value="" />
-
-        <div class="form-group">
-          <label for="voucher_input">Voucher Code</label>
-          <input 
-            type="text" 
-            id="voucher_input" 
-            placeholder="XXXX-XXXX" 
-            required 
-            autocomplete="off" 
-            autocorrect="off" 
-            autocapitalize="characters"
-            maxlength="16"
-          />
-        </div>
-
-        <button type="submit" class="btn-submit">Login</button>
-      </form>
-    </details>
-
-    <div class="footer">
-      <p>Powered by Usimamizi Wi-Fi AAA Control Plane</p>
-    </div>
+  <div class="portal-card">
+    <div class="spinner"></div>
+    <h2>Usimamizi Wi-Fi</h2>
+    <p>Inafungua ukurasa wa huduma za intaneti...<br><span style="font-size:11px; opacity:0.8;">Loading captive portal...</span></p>
+    <a class="redirect-btn" href="http://10.5.50.253:5173/p/usimamizi-lab?link-login=$(link-login-only)&link-orig=$(link-orig)&mac=$(mac)&ip=$(ip)&error=$(error-esc)">
+      Fungua Ukurasa / Open Portal
+    </a>
   </div>
-
-  <script>
-    function doLogin() {
-      var voucherInput = document.getElementById('voucher_input').value.trim().toUpperCase();
-      if (!voucherInput) {
-        alert('Please enter a valid voucher code.');
-        return false;
-      }
-      document.getElementById('username_hidden').value = voucherInput;
-      document.getElementById('password_hidden').value = voucherInput;
-      return true;
-    }
-  </script>
 </body>
 </html>

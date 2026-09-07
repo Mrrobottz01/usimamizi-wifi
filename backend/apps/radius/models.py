@@ -18,6 +18,14 @@ class RadiusClient(models.Model):
         related_name='radius_clients'
     )
     name = models.CharField(max_length=255)
+    router = models.OneToOneField(
+        'routers.Router',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='radius_client',
+        help_text="Physical/logical router appliance hosting this RADIUS NAS"
+    )
     nas_ip = models.GenericIPAddressField(db_index=True)
     nas_identifier = models.CharField(max_length=255, blank=True, default='', db_index=True)
     shared_secret_encrypted = models.TextField(default='', blank=True, help_text="Encrypted shared RADIUS secret key")

@@ -43,12 +43,78 @@ def get_or_create_active_session(
             started_at=timezone.now(),
             last_accounting_at=timezone.now()
         )
+        try:
+            resolve_session_device_name(session)
+        except Exception:
+            pass
     else:
         if ip_address and not session.ip_address:
             session.ip_address = ip_address
             session.save(update_fields=['ip_address'])
+        if not session.device_name:
+            try:
+                resolve_session_device_name(session)
+            except Exception:
+                pass
 
     return session
+
+
+def resolve_session_device_name(session: HotspotSession) -> str:
+    """
+    Resolve and persist the client device name/hostname for a session.
+    First checks CustomerDevice, then queries MikroTik DHCP lease table if available.
+    """
+    if session.device_name:
+        return session.device_name
+
+    # 1. CustomerDevice lookup
+    dev = None
+    try:
+        from apps.customers.models import CustomerDevice
+        dev = CustomerDevice.objects.filter(
+            company=session.company,
+            mac_address=session.mac_address
+        ).first()
+        if dev and dev.device_name:
+            session.device_name = dev.device_name
+            session.device = dev
+            session.save(update_fields=['device_name', 'device', 'updated_at'])
+            return dev.device_name
+    except Exception:
+        pass
+
+    # 2. MikroTik DHCP Leases query
+    router = None
+    if session.radius_client and getattr(session.radius_client, 'router', None):
+        router = session.radius_client.router
+    elif session.hotspot and getattr(session.hotspot, 'router', None):
+        router = session.hotspot.router
+    else:
+        from apps.routers.models import Router
+        router = Router.objects.filter(company=session.company, is_active=True, api_password_encrypted__gt='').first()
+
+    if router and router.has_credentials:
+        try:
+            from apps.routers.services.router_client import RouterOSAPIClient
+            client = RouterOSAPIClient.for_router(router, timeout=1.5)
+            client.connect()
+            leases = client.query('/ip/dhcp-server/lease/print', [f'?mac-address={session.mac_address}'])
+            if not leases and session.ip_address:
+                leases = client.query('/ip/dhcp-server/lease/print', [f'?address={session.ip_address}'])
+            if leases:
+                hostname = leases[0].get('host-name', '').strip()
+                if hostname:
+                    session.device_name = hostname
+                    session.save(update_fields=['device_name', 'updated_at'])
+                    if dev:
+                        dev.device_name = hostname
+                        dev.save(update_fields=['device_name', 'last_seen_at'])
+                    return hostname
+        except Exception:
+            pass
+
+    return ''
 
 
 @transaction.atomic

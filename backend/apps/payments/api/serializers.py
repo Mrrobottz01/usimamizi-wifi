@@ -50,6 +50,8 @@ class PublicPurchaseStatusSerializer(serializers.ModelSerializer):
     plan_name = serializers.CharField(source='plan.name', read_only=True)
     voucher_code = serializers.SerializerMethodField()
     checkout_url = serializers.SerializerMethodField()
+    router_login_url = serializers.SerializerMethodField()
+    gateway_ip = serializers.SerializerMethodField()
 
     class Meta:
         model = AccessPurchase
@@ -62,6 +64,8 @@ class PublicPurchaseStatusSerializer(serializers.ModelSerializer):
             'plan_name',
             'voucher_code',
             'checkout_url',
+            'router_login_url',
+            'gateway_ip',
             'error_message',
             'created_at',
             'completed_at',
@@ -77,6 +81,15 @@ class PublicPurchaseStatusSerializer(serializers.ModelSerializer):
     def get_checkout_url(self, obj) -> str:
         latest_txn = obj.transactions.first()
         return latest_txn.checkout_url if latest_txn else ""
+
+    def get_router_login_url(self, obj) -> str:
+        if obj.hotspot:
+            from apps.companies.services.portal_services import get_hotspot_login_url
+            return get_hotspot_login_url(obj.hotspot)
+        return 'http://10.5.50.1/login'
+
+    def get_gateway_ip(self, obj) -> str:
+        return obj.hotspot.gateway_ip if (obj.hotspot and obj.hotspot.gateway_ip) else ''
 
 
 class PaymentTransactionSerializer(serializers.ModelSerializer):

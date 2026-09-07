@@ -5,6 +5,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from django.db import transaction
 
+from apps.routers.models import Router
+from apps.routers.services.router_client import RouterOSAPIClient, RouterOSError
 from ..models import Company, RouterUplinkProfile
 
 logger = logging.getLogger(__name__)
@@ -15,104 +17,72 @@ ROUTER_USER_DEFAULT = 'admin'
 ROUTER_PASS_DEFAULT = 'admin'
 
 
-class RouterOSAPIClient:
-    def __init__(self, host: str = ROUTER_IP_DEFAULT, port: int = ROUTER_API_PORT, user: str = ROUTER_USER_DEFAULT, password: str = ROUTER_PASS_DEFAULT, timeout: float = 4.0):
-        self.host = host
-        self.port = port
-        self.user = user
-        self.password = password
-        self.timeout = timeout
-        self.sock: Optional[socket.socket] = None
+def _resolve_router_and_client(
+    router: Optional[Router] = None,
+    router_ip: Optional[str] = None,
+    company: Optional[Company] = None,
+    timeout: float = 4.0,
+) -> Tuple[Optional[Router], str, str, RouterOSAPIClient]:
+    """
+    Resolve target Router, uplink interface name, management IP, and an initialized RouterOSAPIClient.
+    Prefers explicit router instance; falls back to router_ip lookup or company's online/reachable router.
+    """
+    target_router = router
+    ip = router_ip
 
-    def connect(self):
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.settimeout(self.timeout)
-        self.sock.connect((self.host, self.port))
-        self._send_sentence(['/login', f'=name={self.user}', f'=password={self.password}'])
-        res = self._read_sentence()
-        if not res or res[0] != '!done':
-            raise RuntimeError(f'RouterOS API authentication failed: {res}')
+    if not target_router and router_ip:
+        target_router = Router.objects.filter(management_ip=router_ip).first()
 
-    def close(self):
-        if self.sock:
-            try:
-                self.sock.close()
-            except Exception:
-                pass
-            self.sock = None
+    if not target_router and company:
+        # Prefer ONLINE router first, then router with credentials, then most recently updated active router
+        target_router = (
+            company.routers.filter(is_active=True, health_status='ONLINE').first()
+            or company.routers.filter(is_active=True, has_credentials=True).first()
+            or company.routers.filter(is_active=True).order_by('-updated_at').first()
+        )
 
-    def __enter__(self):
-        self.connect()
-        return self
+    if target_router:
+        ip = str(target_router.management_ip)
+        interface_name = target_router.uplink_interface_name or 'wlan2'
+        fallback_ip = getattr(target_router, 'fallback_management_ip', None) or '10.5.50.1'
+        if target_router.has_credentials:
+            client = RouterOSAPIClient.for_router(target_router, timeout=timeout)
+        else:
+            client = RouterOSAPIClient(
+                host=ip,
+                fallback_host=fallback_ip,
+                port=target_router.api_port,
+                user=target_router.api_username or ROUTER_USER_DEFAULT,
+                password=target_router.api_password or ROUTER_PASS_DEFAULT,
+                use_tls=target_router.use_tls,
+                timeout=timeout,
+            )
+    else:
+        ip = ip or ROUTER_IP_DEFAULT
+        interface_name = 'wlan2'
+        client = RouterOSAPIClient(
+            host=ip,
+            port=ROUTER_API_PORT,
+            user=ROUTER_USER_DEFAULT,
+            password=ROUTER_PASS_DEFAULT,
+            timeout=timeout,
+        )
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
-
-    def _send_sentence(self, words: List[str]):
-        if not self.sock:
-            raise RuntimeError('Socket is not connected.')
-        for w in words:
-            b = w.encode('utf-8')
-            length = len(b)
-            if length < 0x80:
-                self.sock.send(bytes([length]))
-            elif length < 0x4000:
-                self.sock.send(bytes([length >> 8 | 0x80, length & 0xFF]))
-            self.sock.send(b)
-        self.sock.send(b'\x00')
-
-    def _read_sentence(self) -> List[str]:
-        if not self.sock:
-            return []
-        res = []
-        while True:
-            b = self.sock.recv(1)
-            if not b or b[0] == 0:
-                break
-            length = b[0]
-            if length >= 0x80:
-                b2 = self.sock.recv(1)
-                length = ((length & 0x7F) << 8) | b2[0]
-            word_bytes = b''
-            while len(word_bytes) < length:
-                chunk = self.sock.recv(length - len(word_bytes))
-                if not chunk:
-                    break
-                word_bytes += chunk
-            res.append(word_bytes.decode('utf-8', errors='ignore'))
-        return res
-
-    def query(self, cmd: str, args: Optional[List[str]] = None) -> List[Dict[str, str]]:
-        words = [cmd] + (args or [])
-        self._send_sentence(words)
-        results = []
-        while True:
-            line = self._read_sentence()
-            if not line or line[0] in ['!done', '!trap']:
-                break
-            if line[0] == '!re':
-                d: Dict[str, str] = {}
-                for item in line[1:]:
-                    if item.startswith('='):
-                        parts = item[1:].split('=', 1)
-                        if len(parts) == 2:
-                            d[parts[0]] = parts[1]
-                results.append(d)
-        return results
-
-    def execute(self, cmd: str, args: Optional[List[str]] = None) -> Tuple[bool, str]:
-        words = [cmd] + (args or [])
-        self._send_sentence(words)
-        line = self._read_sentence()
-        if line and line[0] == '!done':
-            return True, 'OK'
-        elif line and line[0] == '!trap':
-            msg = next((x[9:] for x in line if x.startswith('=message=')), 'Error')
-            return False, msg
-        return True, 'OK'
+    return target_router, interface_name, ip, client
 
 
-def get_router_uplink_status(router_ip: str = ROUTER_IP_DEFAULT) -> Dict[str, Any]:
+def get_router_uplink_status(
+    router: Optional[Router] = None,
+    router_ip: str = ROUTER_IP_DEFAULT,
+    company: Optional[Company] = None,
+) -> Dict[str, Any]:
+    target_router, interface_name, ip, client = _resolve_router_and_client(
+        router=router,
+        router_ip=router_ip,
+        company=company,
+        timeout=3.0,
+    )
+
     status: Dict[str, Any] = {
         'connected': False,
         'ssid': '',
@@ -121,30 +91,44 @@ def get_router_uplink_status(router_ip: str = ROUTER_IP_DEFAULT) -> Dict[str, An
         'gateway': 'N/A',
         'internet_online': False,
         'latency_ms': None,
-        'interface_name': 'wlan2',
+        'interface_name': interface_name,
         'mode': 'station',
-        'error': None
+        'router_id': str(target_router.id) if target_router else None,
+        'router_name': target_router.name if target_router else None,
+        'management_ip': ip,
+        'error': None,
     }
 
     try:
-        with RouterOSAPIClient(host=router_ip) as client:
-            wireless_info = client.query('/interface/wireless/print', ['?name=wlan2', '=detail='])
+        with client:
+            wireless_info = client.query('/interface/wireless/print', [f'?name={interface_name}', '=detail='])
             if wireless_info:
                 wlan = wireless_info[0]
                 status['ssid'] = wlan.get('ssid', '')
-                status['interface_name'] = wlan.get('name', 'wlan2')
+                status['interface_name'] = wlan.get('name', interface_name)
                 status['connected'] = (wlan.get('running') == 'true')
                 status['mode'] = wlan.get('mode', 'station')
 
-            reg_info = client.query('/interface/wireless/registration-table/print', ['?interface=wlan2'])
+            reg_info = client.query('/interface/wireless/registration-table/print', [f'?interface={interface_name}'])
             if reg_info:
                 status['signal_strength'] = reg_info[0].get('signal-strength', 'N/A')
 
-            dhcp_info = client.query('/ip/dhcp-client/print', ['?interface=wlan2', '=detail='])
+            dhcp_info = client.query('/ip/dhcp-client/print', [f'?interface={interface_name}', '=detail='])
             if dhcp_info:
                 dhcp = dhcp_info[0]
                 status['wan_ip'] = dhcp.get('address', 'N/A')
                 status['gateway'] = dhcp.get('gateway', 'N/A')
+
+                # Auto-sync dynamic WAN management_ip if bound and changed
+                raw_ip = dhcp.get('address', '').split('/')[0].strip()
+                if raw_ip and raw_ip != 'N/A' and target_router and target_router.management_ip != raw_ip:
+                    try:
+                        logger.info("Auto-syncing router %s management_ip: %s -> %s", target_router.name, target_router.management_ip, raw_ip)
+                        target_router.management_ip = raw_ip
+                        target_router.save(update_fields=['management_ip', 'updated_at'])
+                        status['management_ip'] = raw_ip
+                    except Exception:
+                        pass
 
             try:
                 ping_info = client.query('/ping', ['=address=8.8.8.8', '=count=2'])
@@ -156,13 +140,17 @@ def get_router_uplink_status(router_ip: str = ROUTER_IP_DEFAULT) -> Dict[str, An
                 status['internet_online'] = False
 
     except Exception as e:
-        logger.error('Error querying MikroTik uplink status: %s', e)
+        logger.error('Error querying MikroTik uplink status on %s: %s', ip, e)
         status['error'] = str(e)
 
     return status
 
 
-def scan_nearby_networks(router_ip: str = ROUTER_IP_DEFAULT, duration_seconds: int = 4) -> List[Dict[str, Any]]:
+def scan_nearby_networks(
+    router: Optional[Router] = None,
+    router_ip: str = ROUTER_IP_DEFAULT,
+    duration_seconds: int = 4,
+) -> List[Dict[str, Any]]:
     """
     Scan for nearby wireless networks across 2.4 GHz and 5 GHz spectrum.
     Uses native Wi-Fi hardware adapter scan for full spectrum discovery.
@@ -201,10 +189,15 @@ def scan_nearby_networks(router_ip: str = ROUTER_IP_DEFAULT, duration_seconds: i
     except Exception as e:
         logger.warning('Native Wi-Fi scan error: %s', e)
 
-    # 2. Query RouterOS wlan2 scan if router is reachable
+    # 2. Query RouterOS wireless scan if router is reachable
     try:
-        with RouterOSAPIClient(host=router_ip, timeout=3) as client:
-            client._send_sentence(['/interface/wireless/scan', '=.tag=s1', '=numbers=wlan2', '=duration=2s'])
+        target_router, interface_name, ip, client = _resolve_router_and_client(
+            router=router,
+            router_ip=router_ip,
+            timeout=3.0,
+        )
+        with client:
+            client._send_sentence(['/interface/wireless/scan', '=.tag=s1', f'=numbers={interface_name}', '=duration=2s'])
             start_t = time.time()
             while time.time() - start_t < 2.5:
                 try:
@@ -240,14 +233,24 @@ def scan_nearby_networks(router_ip: str = ROUTER_IP_DEFAULT, duration_seconds: i
     return sorted(list(networks.values()), key=lambda x: parse_sig(x['signal']), reverse=True)
 
 
-
 @transaction.atomic
-def restore_home_airtel(company: Company, router_ip: str = ROUTER_IP_DEFAULT) -> Dict[str, Any]:
+def restore_home_airtel(
+    company: Company,
+    router: Optional[Router] = None,
+    router_ip: str = ROUTER_IP_DEFAULT,
+) -> Dict[str, Any]:
     """
-    Instantly restores wlan2 to the pre-configured working 'airtel-security' profile on MikroTik.
+    Instantly restores station interface to the pre-configured working 'airtel-security' profile on MikroTik.
     """
-    with RouterOSAPIClient(host=router_ip) as client:
-        wlan_info = client.query('/interface/wireless/print', ['?name=wlan2'])
+    target_router, interface_name, ip, client = _resolve_router_and_client(
+        router=router,
+        router_ip=router_ip,
+        company=company,
+        timeout=4.0,
+    )
+
+    with client:
+        wlan_info = client.query('/interface/wireless/print', [f'?name={interface_name}'])
         if wlan_info:
             wlan_id = wlan_info[0].get('.id')
             client.execute(
@@ -259,24 +262,37 @@ def restore_home_airtel(company: Company, router_ip: str = ROUTER_IP_DEFAULT) ->
                 ]
             )
 
-        dhcp_info = client.query('/ip/dhcp-client/print', ['?interface=wlan2'])
+        dhcp_info = client.query('/ip/dhcp-client/print', [f'?interface={interface_name}'])
         if dhcp_info:
             dhcp_id = dhcp_info[0].get('.id')
             client.execute('/ip/dhcp-client/release', [f'=.id={dhcp_id}'])
 
     time.sleep(3.5)
 
-    RouterUplinkProfile.objects.filter(company=company).update(is_active=False)
-    profile, _ = RouterUplinkProfile.objects.update_or_create(
-        company=company,
-        ssid='Avie_5G',
-        defaults={
-            'name': 'Home Airtel 5G',
-            'is_active': True
-        }
-    )
+    if target_router:
+        RouterUplinkProfile.objects.filter(company=company, router=target_router).update(is_active=False)
+        profile, _ = RouterUplinkProfile.objects.update_or_create(
+            company=company,
+            ssid='Avie_5G',
+            router=target_router,
+            defaults={
+                'name': 'Home Airtel 5G',
+                'is_active': True
+            }
+        )
+    else:
+        RouterUplinkProfile.objects.filter(company=company).update(is_active=False)
+        profile, _ = RouterUplinkProfile.objects.update_or_create(
+            company=company,
+            ssid='Avie_5G',
+            defaults={
+                'name': 'Home Airtel 5G',
+                'router': target_router,
+                'is_active': True
+            }
+        )
 
-    new_status = get_router_uplink_status(router_ip=router_ip)
+    new_status = get_router_uplink_status(router=target_router, router_ip=ip, company=company)
     new_status['active_profile_id'] = str(profile.id)
     new_status['active_profile_name'] = profile.name
     return new_status
@@ -289,7 +305,8 @@ def switch_router_uplink(
     ssid: str,
     password: str,
     profile_name: str = '',
-    router_ip: str = ROUTER_IP_DEFAULT
+    router: Optional[Router] = None,
+    router_ip: str = ROUTER_IP_DEFAULT,
 ) -> Dict[str, Any]:
     clean_ssid = ssid.strip()
     clean_pwd = password.strip()
@@ -298,13 +315,20 @@ def switch_router_uplink(
     if not clean_ssid:
         raise ValueError('SSID cannot be empty.')
 
+    target_router, interface_name, ip, client = _resolve_router_and_client(
+        router=router,
+        router_ip=router_ip,
+        company=company,
+        timeout=4.0,
+    )
+
     # Fallback to existing airtel-security if Avie_5G without password
     if clean_ssid.lower() == 'avie_5g' and not clean_pwd:
-        return restore_home_airtel(company=company, router_ip=router_ip)
+        return restore_home_airtel(company=company, router=target_router, router_ip=ip)
 
     sec_profile_name = 'uplink-dynamic-sec'
 
-    with RouterOSAPIClient(host=router_ip) as client:
+    with client:
         existing_sec = client.query('/interface/wireless/security-profiles/print', [f'?name={sec_profile_name}'])
         sec_id = existing_sec[0].get('.id') if existing_sec else None
         if sec_id:
@@ -332,9 +356,9 @@ def switch_router_uplink(
                 ]
             )
 
-        wlan_info = client.query('/interface/wireless/print', ['?name=wlan2'])
+        wlan_info = client.query('/interface/wireless/print', [f'?name={interface_name}'])
         if not wlan_info:
-            raise RuntimeError('MikroTik does not have an upstream interface named wlan2.')
+            raise RuntimeError(f'MikroTik does not have an upstream interface named {interface_name}.')
 
         wlan_id = wlan_info[0].get('.id')
         client.execute(
@@ -346,25 +370,45 @@ def switch_router_uplink(
             ]
         )
 
-        dhcp_info = client.query('/ip/dhcp-client/print', ['?interface=wlan2'])
-        if dhcp_info:
-            dhcp_id = dhcp_info[0].get('.id')
-            client.execute('/ip/dhcp-client/release', [f'=.id={dhcp_id}'])
+        try:
+            dhcp_info = client.query('/ip/dhcp-client/print', [f'?interface={interface_name}'])
+            if dhcp_info:
+                dhcp_id = dhcp_info[0].get('.id')
+                client.execute('/ip/dhcp-client/release', [f'=.id={dhcp_id}'])
+        except Exception as e:
+            logger.info("DHCP release notice: %s", e)
 
-    time.sleep(3.5)
+    time.sleep(2.0)
 
-    RouterUplinkProfile.objects.filter(company=company).update(is_active=False)
-    profile, _ = RouterUplinkProfile.objects.update_or_create(
-        company=company,
-        ssid=clean_ssid,
-        defaults={
-            'name': label,
-            'password': clean_pwd,
-            'is_active': True
-        }
-    )
+    if target_router:
+        RouterUplinkProfile.objects.filter(company=company, router=target_router).update(is_active=False)
+        profile, _ = RouterUplinkProfile.objects.update_or_create(
+            company=company,
+            ssid=clean_ssid,
+            router=target_router,
+            defaults={
+                'name': label,
+                'password': clean_pwd,
+                'is_active': True
+            }
+        )
+    else:
+        RouterUplinkProfile.objects.filter(company=company).update(is_active=False)
+        profile, _ = RouterUplinkProfile.objects.update_or_create(
+            company=company,
+            ssid=clean_ssid,
+            defaults={
+                'name': label,
+                'password': clean_pwd,
+                'router': target_router,
+                'is_active': True
+            }
+        )
 
-    new_status = get_router_uplink_status(router_ip=router_ip)
+    new_status = get_router_uplink_status(router=target_router, company=company)
+    if not new_status.get('connected') and not new_status.get('error'):
+        new_status['ssid'] = clean_ssid
+        new_status['signal_strength'] = 'Associating...'
     new_status['active_profile_id'] = str(profile.id)
     new_status['active_profile_name'] = profile.name
     return new_status

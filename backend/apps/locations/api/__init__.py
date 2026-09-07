@@ -1,0 +1,1 @@
+"""Location REST API module."""

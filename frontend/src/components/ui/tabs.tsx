@@ -8,8 +8,25 @@ interface TabsContextType {
 
 const TabsContext = createContext<TabsContextType | undefined>(undefined);
 
-export function Tabs({ defaultValue, children, className }: { defaultValue: string; children: React.ReactNode; className?: string }) {
-  const [activeTab, setActiveTab] = useState(defaultValue);
+export function Tabs({
+  defaultValue,
+  value,
+  onValueChange,
+  children,
+  className
+}: {
+  defaultValue?: string;
+  value?: string;
+  onValueChange?: (val: string) => void;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const [internalTab, setInternalTab] = useState(defaultValue || '');
+  const activeTab = value !== undefined ? value : internalTab;
+  const setActiveTab = (tab: string) => {
+    if (value === undefined) setInternalTab(tab);
+    onValueChange?.(tab);
+  };
   return (
     <TabsContext.Provider value={{ activeTab, setActiveTab }}>
       <div className={cn('space-y-4', className)}>{children}</div>

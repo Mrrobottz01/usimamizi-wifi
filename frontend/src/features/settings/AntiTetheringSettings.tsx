@@ -32,9 +32,14 @@ function formatBytes(bytes?: number): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
 }
 
-export const AntiTetheringSettings: React.FC = () => {
+interface AntiTetheringSettingsProps {
+  hotspotId?: string;
+}
+
+export const AntiTetheringSettings: React.FC<AntiTetheringSettingsProps> = ({ hotspotId }) => {
   const { selectedCompany } = useAuth();
   const companyId = selectedCompany?.id;
+  const basePath = hotspotId ? `/api/v1/hotspots/${hotspotId}/anti-tethering` : `/api/v1/hotspots/default/anti-tethering`;
 
   const [policy, setPolicy] = useState<AntiTetheringPolicy | null>(null);
   const [routerStatus, setRouterStatus] = useState<AntiTetheringRouterStatus | null>(null);
@@ -57,7 +62,7 @@ export const AntiTetheringSettings: React.FC = () => {
       setLoading(true);
       setErrorMsg('');
       const res = await apiClient.get<AntiTetheringPolicy & { router_status?: AntiTetheringRouterStatus }>(
-        `/api/v1/hotspots/default/anti-tethering/?company_id=${companyId}`
+        `${basePath}/?company_id=${companyId}`
       );
       if (res.data) {
         setPolicy(res.data);
@@ -71,14 +76,14 @@ export const AntiTetheringSettings: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [companyId]);
+  }, [companyId, basePath]);
 
   const fetchCounters = useCallback(async () => {
     if (!companyId) return;
     try {
       setRefreshingCounters(true);
       const res = await apiClient.get<AntiTetheringCounters>(
-        `/api/v1/hotspots/default/anti-tethering/counters/?company_id=${companyId}`
+        `${basePath}/counters/?company_id=${companyId}`
       );
       if (res.data) {
         setCounters(res.data);
@@ -88,7 +93,7 @@ export const AntiTetheringSettings: React.FC = () => {
     } finally {
       setRefreshingCounters(false);
     }
-  }, [companyId]);
+  }, [companyId, basePath]);
 
   useEffect(() => {
     fetchPolicyAndStatus();
@@ -101,7 +106,7 @@ export const AntiTetheringSettings: React.FC = () => {
       setSyncing(true);
       setErrorMsg('');
       const res = await apiClient.post<{ success: boolean; live_status?: AntiTetheringRouterStatus }>(
-        `/api/v1/hotspots/default/anti-tethering/sync/?company_id=${companyId}`
+        `${basePath}/sync/?company_id=${companyId}`
       );
       if (res.data && res.data.live_status) {
         setRouterStatus(res.data.live_status);
@@ -134,7 +139,7 @@ export const AntiTetheringSettings: React.FC = () => {
       setSavingPolicy(true);
       setErrorMsg('');
       const res = await apiClient.patch<AntiTetheringPolicy & { router_status?: AntiTetheringRouterStatus }>(
-        `/api/v1/hotspots/default/anti-tethering/?company_id=${companyId}&sync=${autoSync}`,
+        `${basePath}/?company_id=${companyId}&sync=${autoSync}`,
         updates
       );
       if (res.data) {
@@ -161,7 +166,7 @@ export const AntiTetheringSettings: React.FC = () => {
       setErrorMsg('');
       setShowRestoreModal(false);
       const res = await apiClient.post(
-        `/api/v1/hotspots/default/anti-tethering/restore-defaults/?company_id=${companyId}`
+        `${basePath}/restore-defaults/?company_id=${companyId}`
       );
       if (res.data) {
         fetchPolicyAndStatus();

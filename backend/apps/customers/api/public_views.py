@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.companies.models import HotspotConfiguration
+from apps.companies.services.portal_services import get_default_hotspot, resolve_hotspot_by_slug
 from apps.hotspot_sessions.models import HotspotSession, SessionDisconnectTrigger, SessionStatus
 from apps.hotspot_sessions.services.session_control import disconnect_hotspot_session
 from apps.payments.services.purchase_services import initiate_access_purchase
@@ -66,13 +67,15 @@ class RequestCustomerOTPView(APIView):
         hotspot = None
         company = None
         if slug:
-            hotspot = HotspotConfiguration.objects.filter(slug=slug, is_active=True).first()
+            hotspot = resolve_hotspot_by_slug(slug)
             if hotspot:
                 company = hotspot.company
 
         if not company:
-            # Fallback to first active hotspot or company
-            hotspot = HotspotConfiguration.objects.filter(is_active=True).first()
+            # Fallback to default active hotspot or first active hotspot
+            hotspot = HotspotConfiguration.objects.filter(is_default=True, is_active=True).first()
+            if not hotspot:
+                hotspot = HotspotConfiguration.objects.filter(is_active=True).first()
             if hotspot:
                 company = hotspot.company
 
@@ -123,12 +126,14 @@ class VerifyCustomerOTPView(APIView):
         hotspot = None
         company = None
         if slug:
-            hotspot = HotspotConfiguration.objects.filter(slug=slug, is_active=True).first()
+            hotspot = resolve_hotspot_by_slug(slug)
             if hotspot:
                 company = hotspot.company
 
         if not company:
-            hotspot = HotspotConfiguration.objects.filter(is_active=True).first()
+            hotspot = HotspotConfiguration.objects.filter(is_default=True, is_active=True).first()
+            if not hotspot:
+                hotspot = HotspotConfiguration.objects.filter(is_active=True).first()
             if hotspot:
                 company = hotspot.company
 
@@ -255,7 +260,9 @@ class CustomerPortalRenewView(APIView):
             )
 
         # Initiate purchase via Snippe
-        hotspot = customer.company.hotspots.filter(is_active=True).first()
+        hotspot = get_default_hotspot(customer.company)
+        if not hotspot:
+            hotspot = customer.company.hotspots.filter(is_active=True).first()
         purchase, transaction_obj, api_result = initiate_access_purchase(
             company=customer.company,
             hotspot=hotspot,

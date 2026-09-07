@@ -246,6 +246,8 @@ def disconnect_hotspot_session(
 
     # Resolve NAS RadiusClient
     nas = session.radius_client
+    if not nas and hasattr(session, 'hotspot') and session.hotspot and session.hotspot.router:
+        nas = session.hotspot.router.radius_clients.filter(is_active=True).first()
     if not nas:
         nas = RadiusClient.objects.filter(company=session.company, is_active=True).first()
 

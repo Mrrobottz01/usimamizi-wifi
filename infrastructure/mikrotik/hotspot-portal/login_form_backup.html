@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Usimamizi Wi-Fi — Sign In</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="portal-container">
+    <div class="header">
+      <div class="badge">Usimamizi-WiFi-Lab</div>
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24">
+          <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
+          <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
+          <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+          <line x1="12" y1="20" x2="12.01" y2="20"></line>
+        </svg>
+      </div>
+      <h1>Usimamizi Wi-Fi</h1>
+      <p class="subtitle">Enter your voucher code to access high-speed internet</p>
+    </div>
+
+    $(if error)
+    <div class="alert alert-error">
+      $(error)
+    </div>
+    $(endif)
+
+    <form name="login" action="$(link-login-only)" method="post" onsubmit="return handleConnect(event);">
+      <input type="hidden" name="dst" value="$(link-orig)" />
+      <input type="hidden" name="popup" value="true" />
+      <input type="hidden" name="password" id="hidden_password" value="" />
+
+      <div class="form-group">
+        <label for="voucher_input">Voucher Code</label>
+        <input 
+          type="text" 
+          name="username"
+          id="voucher_input" 
+          placeholder="e.g. 5D78-654J" 
+          required 
+          autocomplete="off" 
+          autocorrect="off" 
+          autocapitalize="characters"
+          spellcheck="false"
+          maxlength="20"
+        />
+      </div>
+
+      <button type="submit" class="btn-submit" id="btn_submit">Connect to Internet</button>
+    </form>
+
+    <div class="divider">
+      <span>AVAILABLE PACKAGES</span>
+    </div>
+
+    <div class="packages-preview">
+      <div class="package-item">
+        <div class="package-info">
+          <div class="package-name">3 Minutes Test Pass</div>
+          <div class="package-meta">3 Mins • 5 Mbps • Unlimited</div>
+        </div>
+        <div class="package-price">500 TZS</div>
+      </div>
+      <div class="package-item">
+        <div class="package-info">
+          <div class="package-name">kitonga (1 Hour)</div>
+          <div class="package-meta">1 Hour • 5 Mbps • Unlimited</div>
+        </div>
+        <div class="package-price">1,000 TZS</div>
+      </div>
+      <div class="package-item">
+        <div class="package-info">
+          <div class="package-name">3 Hours Pass</div>
+          <div class="package-meta">3 Hours • 6 Mbps • Unlimited</div>
+        </div>
+        <div class="package-price">2,000 TZS</div>
+      </div>
+      <div class="package-item">
+        <div class="package-info">
+          <div class="package-name">1 Day (24 Hours) Pass</div>
+          <div class="package-meta">24 Hours • 8 Mbps • Unlimited</div>
+        </div>
+        <div class="package-price">3,000 TZS</div>
+      </div>
+    </div>
+
+    <a href="http://10.5.50.253:5173/p/usimamizi-lab?link-login=$(link-login-only)&link-orig=$(link-orig)&mac=$(mac)&ip=$(ip)" class="btn-buy-primary">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+        <line x1="1" y1="10" x2="23" y2="10"></line>
+      </svg>
+      Buy Voucher Online (M-Pesa / Airtel / Tigo / Yas)
+    </a>
+
+    <div class="footer">
+      <p>Customer Support: <strong>+255 700 000 000</strong></p>
+      <p style="margin-top: 4px; opacity: 0.7;">Fast, secure and reliable internet service</p>
+    </div>
+  </div>
+
+  <script type="text/javascript">
+    function handleConnect(e) {
+      var input = document.getElementById('voucher_input');
+      var code = (input.value || '').trim().toUpperCase();
+      if (!code) {
+        if (e) e.preventDefault();
+        return false;
+      }
+      input.value = code;
+      document.getElementById('hidden_password').value = code;
+      var btn = document.getElementById('btn_submit');
+      btn.textContent = 'Connecting...';
+      btn.disabled = true;
+      return true;
+    }
+  </script>
+</body>
+</html>

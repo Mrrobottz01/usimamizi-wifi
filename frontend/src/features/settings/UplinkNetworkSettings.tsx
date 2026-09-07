@@ -56,7 +56,12 @@ interface UplinkResponse {
   profiles: SavedProfile[];
 }
 
-export function UplinkNetworkSettings() {
+interface UplinkNetworkSettingsProps {
+  routerId?: string;
+  routerIp?: string;
+}
+
+export function UplinkNetworkSettings({ routerId, routerIp }: UplinkNetworkSettingsProps = {}) {
   const { selectedCompany } = useAuth();
   const [status, setStatus] = useState<UplinkStatus | null>(null);
   const [profiles, setProfiles] = useState<SavedProfile[]>([]);
@@ -82,7 +87,11 @@ export function UplinkNetworkSettings() {
   const fetchStatus = useCallback(async (isManual = false) => {
     if (isManual) setRefreshing(true);
     try {
-      const query = selectedCompany?.id ? `?company_id=${selectedCompany.id}` : '';
+      const params = new URLSearchParams();
+      if (selectedCompany?.id) params.set('company_id', selectedCompany.id);
+      if (routerId) params.set('router_id', routerId);
+      if (routerIp) params.set('router_ip', routerIp);
+      const query = params.toString() ? `?${params.toString()}` : '';
       const data = await apiFetch<UplinkResponse>(`/companies/uplink/status/${query}`);
       if (data) {
         setStatus(data.status);
@@ -94,7 +103,7 @@ export function UplinkNetworkSettings() {
       setLoading(false);
       if (isManual) setRefreshing(false);
     }
-  }, [selectedCompany?.id]);
+  }, [selectedCompany?.id, routerId, routerIp]);
 
   useEffect(() => {
     fetchStatus();
@@ -108,7 +117,12 @@ export function UplinkNetworkSettings() {
     setScanning(true);
     setActionError(null);
     try {
-      const networks = await apiFetch<ScannedNetwork[]>('/companies/uplink/scan/');
+      const params = new URLSearchParams();
+      if (selectedCompany?.id) params.set('company_id', selectedCompany.id);
+      if (routerId) params.set('router_id', routerId);
+      if (routerIp) params.set('router_ip', routerIp);
+      const query = params.toString() ? `?${params.toString()}` : '';
+      const networks = await apiFetch<ScannedNetwork[]>(`/companies/uplink/scan/${query}`);
       setScannedNetworks(networks || []);
       setScanPerformed(true);
       if (networks && networks.length > 0) {
@@ -138,7 +152,11 @@ export function UplinkNetworkSettings() {
     try {
       const res = await apiFetch<any>('/companies/uplink/restore-home/', {
         method: 'POST',
-        body: JSON.stringify({ company_id: selectedCompany?.id })
+        body: JSON.stringify({
+          company_id: selectedCompany?.id,
+          router_id: routerId,
+          router_ip: routerIp,
+        })
       });
       setActionSuccess('Restored connection to Home Airtel (Avie_5G) successfully!');
       if (res?.status) {
@@ -161,7 +179,9 @@ export function UplinkNetworkSettings() {
         method: 'POST',
         body: JSON.stringify({
           company_id: selectedCompany?.id,
-          profile_id: profile.id
+          profile_id: profile.id,
+          router_id: routerId,
+          router_ip: routerIp,
         })
       });
       setActionSuccess(`Switched to "${profile.name}" (${profile.ssid}) successfully!`);
@@ -169,6 +189,7 @@ export function UplinkNetworkSettings() {
         setStatus(res.status);
       }
       await fetchStatus();
+      [2000, 4500, 7500, 11000].forEach(delay => setTimeout(() => fetchStatus(), delay));
     } catch (err: any) {
       setActionError(err.detail || 'Failed to switch network.');
     } finally {
@@ -192,6 +213,8 @@ export function UplinkNetworkSettings() {
         method: 'POST',
         body: JSON.stringify({
           company_id: selectedCompany?.id,
+          router_id: routerId,
+          router_ip: routerIp,
           ssid: newSsid.trim(),
           password: newPassword,
           profile_name: newLabel.trim() || newSsid.trim()
@@ -205,6 +228,7 @@ export function UplinkNetworkSettings() {
         setStatus(res.status);
       }
       await fetchStatus();
+      [2000, 4500, 7500, 11000].forEach(delay => setTimeout(() => fetchStatus(), delay));
     } catch (err: any) {
       setActionError(err.detail || 'Failed to connect to new network.');
     } finally {
@@ -215,7 +239,11 @@ export function UplinkNetworkSettings() {
   const handleDeleteProfile = async (id: string, name: string) => {
     if (!window.confirm(`Are you sure you want to remove "${name}" from saved networks?`)) return;
     try {
-      const query = selectedCompany?.id ? `?company_id=${selectedCompany.id}` : '';
+      const params = new URLSearchParams();
+      if (selectedCompany?.id) params.set('company_id', selectedCompany.id);
+      if (routerId) params.set('router_id', routerId);
+      if (routerIp) params.set('router_ip', routerIp);
+      const query = params.toString() ? `?${params.toString()}` : '';
       await apiFetch(`/companies/uplink/profiles/${id}/${query}`, {
         method: 'DELETE'
       });
@@ -297,6 +325,10 @@ export function UplinkNetworkSettings() {
                   {status?.connected ? (
                     <Badge variant="success">
                       Connected
+                    </Badge>
+                  ) : status?.ssid ? (
+                    <Badge variant="outline" className="bg-amber-500/10 text-amber-500 border-amber-500/20 animate-pulse">
+                      Connecting…
                     </Badge>
                   ) : (
                     <Badge variant="destructive">Disconnected</Badge>

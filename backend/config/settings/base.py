@@ -39,6 +39,8 @@ INSTALLED_APPS = [
     'apps.core.apps.CoreConfig',
     'apps.accounts.apps.AccountsConfig',
     'apps.companies.apps.CompaniesConfig',
+    'apps.locations.apps.LocationsConfig',
+    'apps.routers.apps.RoutersConfig',
     'apps.notifications.apps.NotificationsConfig',
     'apps.audit.apps.AuditConfig',
     'apps.plans.apps.PlansConfig',
@@ -137,8 +139,26 @@ REST_FRAMEWORK = {
     ),
 }
 
+from datetime import timedelta
+
+# SimpleJWT Authentication
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=7),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': False,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+}
+
 # CORS configuration
-CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=['http://localhost:5173', 'http://127.0.0.1:5173'])
+CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://10.5.50.253:5173',
+    'http://192.168.1.163:5173',
+    'http://10.5.50.1:5173',
+])
 CORS_ALLOW_CREDENTIALS = True
 
 # Internationalization

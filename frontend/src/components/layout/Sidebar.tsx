@@ -72,34 +72,46 @@ export function Sidebar() {
       <nav className="flex-1 space-y-6 px-4 py-6 overflow-y-auto">
         <div className="space-y-1">
           <p className="px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-            Configuration
+            Network Infrastructure
           </p>
-          <SidebarItem to="/settings" icon={Settings} label="Settings" />
-          <SidebarItem to="/notifications/sms-history" icon={MessageSquare} label="SMS Delivery Logs" />
+          <SidebarItem to="/locations" icon={MapPin} label="Locations" />
+          <SidebarItem to="/routers" icon={RouterIcon} label="Routers" />
+          <SidebarItem to="/hotspots" icon={Radio} label="Hotspots" />
         </div>
 
         <div className="space-y-1">
           <p className="px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-            Hotspot Management
+            Operations
           </p>
-          <SidebarItem to="/locations" icon={MapPin} label="Locations" badge="Phase 3" />
-          <SidebarItem to="/routers" icon={RouterIcon} label="Routers" badge="Phase 3" />
-          <SidebarItem to="/hotspots" icon={Radio} label="Hotspots" badge="Phase 3" />
           <SidebarItem to="/sessions" icon={Activity} label="Active Sessions" />
           <SidebarItem to="/customers" icon={Users} label="Customers" />
           <SidebarItem to="/subscriptions" icon={Repeat} label="Subscriptions" />
+        </div>
+
+        <div className="space-y-1">
+          <p className="px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+            Billing & Access
+          </p>
           <SidebarItem to="/plans" icon={CreditCard} label="Internet Plans" />
-          <SidebarItem to="/payments" icon={DollarSign} label="Payments & Orders" />
-          <SidebarItem to="/walled-garden" icon={ShieldCheck} label="Walled Garden" />
           <SidebarItem to="/vouchers" icon={Ticket} label="Vouchers" />
+          <SidebarItem to="/payments" icon={DollarSign} label="Payments & Orders" />
           <SidebarItem to="/entitlements" icon={Key} label="Access Entitlements" />
-          <SidebarItem to="/reports" icon={BarChart3} label="Reports" badge="Phase 8" />
+          <SidebarItem to="/walled-garden" icon={ShieldCheck} label="Walled Garden" />
+        </div>
+
+        <div className="space-y-1">
+          <p className="px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+            System
+          </p>
+          <SidebarItem to="/reports" icon={BarChart3} label="Reports" />
+          <SidebarItem to="/notifications/sms-history" icon={MessageSquare} label="SMS Delivery Logs" />
+          <SidebarItem to="/settings" icon={Settings} label="Settings" />
         </div>
       </nav>
 
       {/* Footer */}
       <div className="p-4 border-t border-border text-center text-xs text-muted-foreground">
-        Usimamizi Wi-Fi v1.0.0 — Phase 0
+        Usimamizi Wi-Fi v1.0
       </div>
     </aside>
   );

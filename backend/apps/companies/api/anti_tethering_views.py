@@ -8,7 +8,7 @@ from apps.audit.models import AuditLog
 from ..models import HotspotConfiguration
 from ..permissions import IsCompanyMember
 from ..selectors.company_selectors import get_company_by_id
-from ..services.portal_services import get_or_create_default_hotspot
+from ..services.portal_services import get_default_hotspot
 from ..services.anti_tethering_services import (
     get_or_create_anti_tethering_policy,
     get_anti_tethering_status,
@@ -50,7 +50,12 @@ def resolve_hotspot_from_request(request, hotspot_id=None) -> tuple:
             status=status.HTTP_404_NOT_FOUND
         )
 
-    hotspot = get_or_create_default_hotspot(company)
+    hotspot = get_default_hotspot(company)
+    if not hotspot:
+        return None, Response(
+            {"code": "hotspot_not_found", "detail": "Default HotSpot not found for this company."},
+            status=status.HTTP_404_NOT_FOUND
+        )
     return hotspot, None
 
 

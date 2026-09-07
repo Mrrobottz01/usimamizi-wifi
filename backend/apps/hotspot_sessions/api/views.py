@@ -13,6 +13,7 @@ from ..selectors.session_selectors import (
     get_sessions_queryset,
 )
 from ..services.session_control import disconnect_hotspot_session
+from ..services.session_services import resolve_session_device_name
 from .serializers import (
     HotspotSessionSerializer,
     ManualDisconnectSerializer,
@@ -55,6 +56,12 @@ class HotspotSessionListView(APIView):
         page_obj = paginator.get_page(page_num)
 
         summary = calculate_session_summary_metrics(company=company, queryset=qs)
+        for sess in page_obj.object_list:
+            if not sess.device_name:
+                try:
+                    resolve_session_device_name(sess)
+                except Exception:
+                    pass
         serializer = HotspotSessionSerializer(page_obj.object_list, many=True)
 
         return Response({

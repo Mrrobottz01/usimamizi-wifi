@@ -57,3 +57,5 @@ Thumbs.db
 
 # Antigravity artifacts (local logs)
 .gemini/
+.agents/
+scratch/

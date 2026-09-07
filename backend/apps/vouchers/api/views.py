@@ -120,7 +120,12 @@ class BatchPrintableCardsView(APIView):
             return Response({"code": "batch_not_found", "detail": "Batch not found."}, status=status.HTTP_404_NOT_FOUND)
 
         self.check_object_permissions(request, batch.company)
-        cards = get_printable_voucher_cards(batch)
+        hotspot_id = request.query_params.get('hotspot_id')
+        hotspot = None
+        if hotspot_id:
+            from apps.companies.models import HotspotConfiguration
+            hotspot = HotspotConfiguration.objects.filter(id=hotspot_id, company=batch.company).first()
+        cards = get_printable_voucher_cards(batch, hotspot=hotspot)
         return Response({
             "batch": VoucherBatchSerializer(batch).data,
             "cards": cards
@@ -268,12 +273,18 @@ class SendVoucherSMSView(APIView):
         serializer.is_valid(raise_exception=True)
 
         recipient_phone = serializer.validated_data['recipient_phone']
+        hotspot_id = request.data.get('hotspot_id') or request.query_params.get('hotspot_id')
+        hotspot = None
+        if hotspot_id:
+            from apps.companies.models import HotspotConfiguration
+            hotspot = HotspotConfiguration.objects.filter(id=hotspot_id, company=voucher.company).first()
 
         try:
             notification = send_voucher_sms(
                 voucher=voucher,
                 recipient_phone=recipient_phone,
-                company=voucher.company
+                company=voucher.company,
+                hotspot=hotspot
             )
             return Response({
                 "detail": f"SMS queued for delivery to {notification.phone_normalized or recipient_phone}.",

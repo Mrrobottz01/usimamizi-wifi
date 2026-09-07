@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="refresh" content="2; url=$(link-redirect)">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Connected — Usimamizi Wi-Fi</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="text/javascript">
+    function proceed() {
+      var dest = "$(link-redirect)";
+      if (dest && dest.indexOf("http") === 0) {
+        window.location.replace(dest);
+      }
+    }
+  </script>
+</head>
+<body onload="proceed()">
+  <div class="portal-container" style="text-align: center;">
+    <div class="header">
+      <div class="badge" style="background-color: rgba(16, 185, 129, 0.1); color: #10b981;">Online</div>
+      <div class="logo-icon" style="background-color: rgba(16, 185, 129, 0.1); color: #10b981;">
+        <svg viewBox="0 0 24 24">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+          <polyline points="22 4 12 14.01 9 11.01"></polyline>
+        </svg>
+      </div>
+      <h1>You're Connected!</h1>
+      <p class="subtitle">Your voucher has been verified successfully.</p>
+    </div>
+
+    <table class="info-table">
+      <tr>
+        <td class="label">Voucher</td>
+        <td class="value">$(username)</td>
+      </tr>
+      <tr>
+        <td class="label">IP Address</td>
+        <td class="value">$(ip)</td>
+      </tr>
+    </table>
+
+    <div style="margin: 24px 0 16px;">
+      <a href="$(link-redirect)" class="btn-submit" style="display:inline-block; text-decoration:none; line-height:48px;">
+        Start Browsing
+      </a>
+    </div>
+
+    <div class="footer">
+      <p>Enjoy your high-speed internet!</p>
+    </div>
+  </div>
+</body>
+</html>

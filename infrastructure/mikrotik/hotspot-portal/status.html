@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Connected — Usimamizi Wi-Fi</title>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -23,6 +23,10 @@
       <tr>
         <td class="label">Voucher Code</td>
         <td class="value">$(username)</td>
+      </tr>
+      <tr>
+        <td class="label">Device Name</td>
+        <td class="value" id="device_name_val">Detecting...</td>
       </tr>
       <tr>
         <td class="label">IP Address</td>
@@ -57,8 +61,31 @@
     </form>
 
     <div class="footer">
-      <p>Enjoy your internet connection!</p>
+      <p>Enjoy your high-speed internet connection!</p>
     </div>
   </div>
+
+  <script type="text/javascript">
+    (function() {
+      var ua = navigator.userAgent || '';
+      var name = 'Wi-Fi Client Device';
+      if (/Android/i.test(ua)) {
+        var m = ua.match(/Android[^;]+;\s*([^;)]+)/);
+        name = (m && m[1]) ? m[1].trim() : 'Android Phone';
+      } else if (/iPhone/i.test(ua)) {
+        name = 'Apple iPhone';
+      } else if (/iPad/i.test(ua)) {
+        name = 'Apple iPad';
+      } else if (/Windows/i.test(ua)) {
+        name = 'Windows PC';
+      } else if (/Macintosh/i.test(ua)) {
+        name = 'Mac Computer';
+      } else if (/Linux/i.test(ua)) {
+        name = 'Linux Device';
+      }
+      var el = document.getElementById('device_name_val');
+      if (el) el.textContent = name;
+    })();
+  </script>
 </body>
 </html>

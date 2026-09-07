@@ -3,6 +3,7 @@ from .base import *  # noqa: F403
 DEBUG = True
 
 ALLOWED_HOSTS = ['*']
+CORS_ALLOW_ALL_ORIGINS = True
 
 # In dev mode, append BrowsableAPIRenderer for testing in browser
 REST_FRAMEWORK['DEFAULT_RENDERER_CLASSES'] = (  # noqa: F405

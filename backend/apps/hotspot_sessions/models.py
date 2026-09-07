@@ -43,11 +43,20 @@ class HotspotSession(models.Model):
     device = models.ForeignKey('customers.CustomerDevice', on_delete=models.SET_NULL, null=True, blank=True, related_name='hotspot_sessions')
     subscription = models.ForeignKey('customers.Subscription', on_delete=models.SET_NULL, null=True, blank=True, related_name='hotspot_sessions')
     radius_client = models.ForeignKey('radius.RadiusClient', on_delete=models.SET_NULL, null=True, blank=True, related_name='sessions')
+    hotspot = models.ForeignKey(
+        'companies.HotspotConfiguration',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='sessions',
+        help_text="Attributed HotSpot configuration for session"
+    )
 
     acct_session_id = models.CharField(max_length=255, db_index=True)
     username = models.CharField(max_length=255, db_index=True)
     mac_address = models.CharField(max_length=32, db_index=True)
     ip_address = models.GenericIPAddressField(null=True, blank=True)
+    device_name = models.CharField(max_length=128, blank=True, default='', help_text="Hostname or friendly device label e.g. Fsociety, iPhone-13")
 
     status = models.CharField(max_length=32, choices=SessionStatus.choices, default=SessionStatus.ACTIVE, db_index=True)
 
@@ -71,6 +80,7 @@ class HotspotSession(models.Model):
             models.Index(fields=['company', 'status']),
             models.Index(fields=['entitlement', 'status']),
             models.Index(fields=['radius_client', 'acct_session_id']),
+            models.Index(fields=['hotspot', 'status']),
         ]
 
     def __str__(self):

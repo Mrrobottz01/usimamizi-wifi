@@ -1,7 +1,10 @@
 import uuid
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
+
+from apps.core.security import encrypt_secret, decrypt_secret
 
 
 class CompanyStatus(models.TextChoices):
@@ -38,6 +41,13 @@ class Company(models.Model):
 
     def __str__(self):
         return self.name
+
+    @property
+    def default_hotspot(self):
+        """Return the designated default active hotspot for the company."""
+        return self.hotspots.filter(is_default=True, is_active=True).first() or \
+               self.hotspots.filter(is_default=True).first() or \
+               self.hotspots.filter(is_active=True).first()
 
 
 class CompanyMembership(models.Model):
@@ -77,8 +87,58 @@ class HotspotConfiguration(models.Model):
     )
     name = models.CharField(max_length=255, default='Main Wi-Fi HotSpot')
     slug = models.SlugField(max_length=255, unique=True, db_index=True)
+    location = models.ForeignKey(
+        'locations.Location',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='hotspots',
+        help_text="Physical venue/location of this hotspot"
+    )
+    router = models.ForeignKey(
+        'routers.Router',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='hotspots',
+        help_text="Router hosting this hotspot service"
+    )
+    interface_name = models.CharField(
+        max_length=64,
+        blank=True,
+        default='bridgeLocal',
+        help_text="Router interface or bridge e.g. bridgeLocal, vlan10"
+    )
+    server_name = models.CharField(
+        max_length=64,
+        blank=True,
+        default='hotspot1',
+        help_text="MikroTik /ip hotspot server name"
+    )
+    gateway_ip = models.GenericIPAddressField(
+        null=True,
+        blank=True,
+        help_text="Customer default gateway IP on hotspot network (e.g. 10.5.50.1)"
+    )
+    subnet_mask = models.CharField(
+        max_length=32,
+        blank=True,
+        default='255.255.255.0',
+        help_text="Subnet mask or CIDR e.g. 255.255.255.0 or /24"
+    )
     ssid = models.CharField(max_length=128, default='Usimamizi-WiFi-Lab')
     is_active = models.BooleanField(default=True, db_index=True)
+    is_default = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Primary/default hotspot for the company"
+    )
+    plans = models.ManyToManyField(
+        'plans.Plan',
+        blank=True,
+        related_name='hotspots',
+        help_text="Specific plans available on this hotspot. If empty, all active company plans are offered."
+    )
 
     # Tenant Branding Tokens
     brand_name = models.CharField(max_length=255, blank=True, default='')
@@ -89,7 +149,7 @@ class HotspotConfiguration(models.Model):
     support_phone = models.CharField(max_length=64, blank=True, default='')
     terms_url = models.URLField(max_length=512, blank=True, default='')
     privacy_url = models.URLField(max_length=512, blank=True, default='')
-    default_language = models.CharField(max_length=8, default='EN', choices=[('EN', 'English'), ('SW', 'Kiswahili')])
+    default_language = models.CharField(max_length=8, default='SW', choices=[('EN', 'English'), ('SW', 'Kiswahili')])
 
     # Router Handoff URL (e.g. http://10.5.50.1/login or $(link-login-only))
     router_login_url = models.CharField(max_length=255, default='http://10.5.50.1/login')
@@ -102,9 +162,31 @@ class HotspotConfiguration(models.Model):
         verbose_name = 'HotSpot Configuration'
         verbose_name_plural = 'HotSpot Configurations'
         ordering = ['name']
+        indexes = [
+            models.Index(fields=['company', 'router']),
+            models.Index(fields=['company', 'location']),
+            models.Index(fields=['company', 'slug']),
+            models.Index(fields=['company', 'is_default']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['company'],
+                condition=models.Q(is_default=True),
+                name='unique_default_hotspot_per_company'
+            )
+        ]
 
     def __str__(self):
         return f"{self.name} ({self.slug}) - {self.company.name}"
+
+    def clean(self):
+        super().clean()
+        if self.location_id and self.company_id and self.location.company_id != self.company_id:
+            raise ValidationError({'location': 'Hotspot location must belong to the same company.'})
+        if self.router_id and self.company_id and self.router.company_id != self.company_id:
+            raise ValidationError({'router': 'Hotspot router must belong to the same company.'})
+        if self.location_id and self.router_id and self.router.location_id and self.router.location_id != self.location_id:
+            raise ValidationError({'location': 'Hotspot location must match the hosting router location.'})
 
 
 class RouterUplinkProfile(models.Model):
@@ -117,12 +199,42 @@ class RouterUplinkProfile(models.Model):
         on_delete=models.CASCADE,
         related_name='uplink_profiles'
     )
+    router = models.ForeignKey(
+        'routers.Router',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='uplink_profiles',
+        help_text="Optional router this uplink profile belongs to"
+    )
     name = models.CharField(max_length=128, help_text="e.g. Home Airtel 5G, Office Vodacom")
     ssid = models.CharField(max_length=128)
-    password = models.CharField(max_length=128, blank=True, default='')
+    password_encrypted = models.TextField(blank=True, default='', help_text="Encrypted upstream Wi-Fi password")
     is_active = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def password(self) -> str:
+        """Decrypt upstream Wi-Fi password from at-rest ciphertext."""
+        if not self.password_encrypted:
+            return ''
+        try:
+            return decrypt_secret(self.password_encrypted)
+        except Exception:
+            return ''
+
+    @password.setter
+    def password(self, val: str):
+        """Encrypt upstream Wi-Fi password for secure at-rest storage."""
+        if val:
+            self.password_encrypted = encrypt_secret(val)
+        else:
+            self.password_encrypted = ''
+
+    @property
+    def has_password(self) -> bool:
+        return bool(self.password_encrypted)
 
     class Meta:
         db_table = 'router_uplink_profiles'

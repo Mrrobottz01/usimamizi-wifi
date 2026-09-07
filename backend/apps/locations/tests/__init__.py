@@ -1,0 +1,3 @@
+"""
+Locations tests package.
+"""

@@ -3,7 +3,6 @@ import { ProtectedRoute } from '../features/auth/ProtectedRoute';
 import { LoginPage } from '../features/auth/LoginPage';
 import { AppShell } from '../components/layout/AppShell';
 import { SettingsLayout } from '../features/settings/SettingsLayout';
-import { HotspotSettingsPage } from '../features/settings/HotspotSettingsPage';
 import { SMSHistoryPage } from '../features/notifications/SMSHistoryPage';
 import { PlansListPage } from '../features/plans/PlansListPage';
 import { VoucherBatchesListPage } from '../features/vouchers/VoucherBatchesListPage';
@@ -18,11 +17,16 @@ import { SubscriptionsListPage } from '../features/subscriptions/SubscriptionsLi
 import { PaymentsPage } from '../features/payments/PaymentsPage';
 import { WalledGardenPage } from '../features/payments/WalledGardenPage';
 import { PlaceholderPage } from '../features/placeholder/PlaceholderPage';
-import {
-  MapPin,
-  Router as RouterIcon,
-  BarChart3,
-} from 'lucide-react';
+
+// Infrastructure Fleet Workspaces
+import { LocationsListPage } from '../features/locations/LocationsListPage';
+import { LocationDetailPage } from '../features/locations/LocationDetailPage';
+import { RoutersListPage } from '../features/routers/RoutersListPage';
+import { RouterDetailPage } from '../features/routers/RouterDetailPage';
+import { HotspotsListPage } from '../features/hotspots/HotspotsListPage';
+import { HotspotDetailPage } from '../features/hotspots/HotspotDetailPage';
+
+import { BarChart3 } from 'lucide-react';
 
 export const router = createBrowserRouter([
   // Public Captive Portal Customer Routes (Unauthenticated, Mobile-first)
@@ -58,22 +62,88 @@ export const router = createBrowserRouter([
       </ProtectedRoute>
     ),
   },
+
+  // NETWORK INFRASTRUCTURE
+  {
+    path: '/locations',
+    element: (
+      <ProtectedRoute>
+        <AppShell>
+          <LocationsListPage />
+        </AppShell>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/locations/:id',
+    element: (
+      <ProtectedRoute>
+        <AppShell>
+          <LocationDetailPage />
+        </AppShell>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/routers',
+    element: (
+      <ProtectedRoute>
+        <AppShell>
+          <RoutersListPage />
+        </AppShell>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/routers/:id',
+    element: (
+      <ProtectedRoute>
+        <AppShell>
+          <RouterDetailPage />
+        </AppShell>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/hotspots',
+    element: (
+      <ProtectedRoute>
+        <AppShell>
+          <HotspotsListPage />
+        </AppShell>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/hotspots/:id',
+    element: (
+      <ProtectedRoute>
+        <AppShell>
+          <HotspotDetailPage />
+        </AppShell>
+      </ProtectedRoute>
+    ),
+  },
+
+  // Compatibility redirect for old /settings/hotspot
+  {
+    path: '/settings/hotspot',
+    element: (
+      <ProtectedRoute>
+        <AppShell>
+          <Navigate to="/hotspots" replace />
+        </AppShell>
+      </ProtectedRoute>
+    ),
+  },
+
+  // SYSTEM & SETTINGS
   {
     path: '/settings',
     element: (
       <ProtectedRoute>
         <AppShell>
           <SettingsLayout />
-        </AppShell>
-      </ProtectedRoute>
-    ),
-  },
-  {
-    path: '/settings/hotspot',
-    element: (
-      <ProtectedRoute>
-        <AppShell>
-          <HotspotSettingsPage />
         </AppShell>
       </ProtectedRoute>
     ),
@@ -98,6 +168,8 @@ export const router = createBrowserRouter([
       </ProtectedRoute>
     ),
   },
+
+  // BILLING & ACCESS
   {
     path: '/payments',
     element: (
@@ -168,46 +240,8 @@ export const router = createBrowserRouter([
       </ProtectedRoute>
     ),
   },
-  {
-    path: '/locations',
-    element: (
-      <ProtectedRoute>
-        <AppShell>
-          <PlaceholderPage
-            title="Locations"
-            description="Manage physical business sites and branch networks."
-            phase="Phase 3 Core"
-            icon={MapPin}
-          />
-        </AppShell>
-      </ProtectedRoute>
-    ),
-  },
-  {
-    path: '/routers',
-    element: (
-      <ProtectedRoute>
-        <AppShell>
-          <PlaceholderPage
-            title="Routers"
-            description="Manage MikroTik hardware fleet, connection status, and RouterOS configuration."
-            phase="Phase 3 & Phase 9"
-            icon={RouterIcon}
-          />
-        </AppShell>
-      </ProtectedRoute>
-    ),
-  },
-  {
-    path: '/hotspots',
-    element: (
-      <ProtectedRoute>
-        <AppShell>
-          <HotspotSettingsPage />
-        </AppShell>
-      </ProtectedRoute>
-    ),
-  },
+
+  // OPERATIONS
   {
     path: '/sessions',
     element: (
@@ -248,6 +282,8 @@ export const router = createBrowserRouter([
       </ProtectedRoute>
     ),
   },
+
+  // REPORTS
   {
     path: '/reports',
     element: (
@@ -256,7 +292,7 @@ export const router = createBrowserRouter([
           <PlaceholderPage
             title="Analytics & Financial Reports"
             description="View revenue by plan, location, payment provider, and network usage trends."
-            phase="Phase 8 Reports"
+            phase="Phase 8 Analytics"
             icon={BarChart3}
           />
         </AppShell>
