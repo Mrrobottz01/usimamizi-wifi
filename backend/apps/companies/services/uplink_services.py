@@ -134,6 +134,22 @@ def get_router_uplink_status(
                     except Exception:
                         pass
 
+            # If wireless station is disconnected or has no WAN IP, detect active wired Ethernet WAN (e.g. ether1)
+            if not status['connected'] or status['wan_ip'] == 'N/A':
+                try:
+                    bound_dhcp = client.query('/ip/dhcp-client/print', ['?status=bound', '=detail='])
+                    for dhcp_item in bound_dhcp:
+                        if dhcp_item.get('interface') != interface_name:
+                            status['ethernet_interface'] = dhcp_item.get('interface')
+                            status['ethernet_ip'] = dhcp_item.get('address')
+                            status['ethernet_gateway'] = dhcp_item.get('gateway')
+                            if status['wan_ip'] == 'N/A':
+                                status['wan_ip'] = dhcp_item.get('address', 'N/A')
+                                status['gateway'] = dhcp_item.get('gateway', 'N/A')
+                            break
+                except Exception as eth_err:
+                    logger.debug("Could not inspect ether DHCP clients: %s", eth_err)
+
             try:
                 ping_info = client.query('/ping', ['=address=8.8.8.8', '=count=2'])
                 if ping_info and any(p.get('received') != '0' for p in ping_info):

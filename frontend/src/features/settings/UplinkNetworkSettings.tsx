@@ -32,6 +32,9 @@ interface UplinkStatus {
   latency_ms: string | null;
   interface_name: string;
   mode: string;
+  ethernet_interface?: string;
+  ethernet_ip?: string;
+  ethernet_gateway?: string;
   error?: string | null;
 }
 
@@ -318,14 +321,16 @@ export function UplinkNetworkSettings({ routerId, routerIp }: UplinkNetworkSetti
             <div className="py-8 text-center text-muted-foreground">Checking MikroTik uplink status...</div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              {/* Connected SSID */}
+              {/* Connected SSID or Ethernet */}
               <div className="p-4 rounded-lg bg-muted/40 border border-border">
-                <div className="text-xs text-muted-foreground uppercase font-semibold">Active Wi-Fi</div>
+                <div className="text-xs text-muted-foreground uppercase font-semibold">
+                  {status?.connected ? 'Active Wi-Fi' : status?.ethernet_interface ? 'Active Uplink (WAN)' : 'Active Wi-Fi'}
+                </div>
                 <div className="mt-1 flex items-center gap-2">
                   {status?.connected ? (
-                    <Badge variant="success">
-                      Connected
-                    </Badge>
+                    <Badge variant="success">Connected</Badge>
+                  ) : status?.ethernet_interface ? (
+                    <Badge variant="success">Ethernet Wired</Badge>
                   ) : status?.ssid ? (
                     <Badge variant="outline" className="bg-amber-500/10 text-amber-500 border-amber-500/20 animate-pulse">
                       Connecting…
@@ -333,18 +338,26 @@ export function UplinkNetworkSettings({ routerId, routerIp }: UplinkNetworkSetti
                   ) : (
                     <Badge variant="destructive">Disconnected</Badge>
                   )}
-                  <span className="font-bold text-foreground truncate">{status?.ssid || 'None'}</span>
+                  <span className="font-bold text-foreground truncate">
+                    {status?.connected
+                      ? (status?.ssid || 'None')
+                      : status?.ethernet_interface
+                      ? status.ethernet_interface
+                      : 'None'}
+                  </span>
                 </div>
               </div>
 
-              {/* Signal Strength */}
+              {/* Signal Strength / Physical Medium */}
               <div className="p-4 rounded-lg bg-muted/40 border border-border">
                 <div className="text-xs text-muted-foreground uppercase font-semibold flex items-center gap-1">
-                  <Signal className="h-3.5 w-3.5" /> Signal Strength
+                  <Signal className="h-3.5 w-3.5" /> Uplink Medium
                 </div>
                 <div className="mt-1 font-semibold text-foreground">
-                  {status?.signal_strength && status.signal_strength !== 'N/A'
+                  {status?.connected && status?.signal_strength && status.signal_strength !== 'N/A'
                     ? status.signal_strength
+                    : status?.ethernet_interface
+                    ? 'Wired (ether1)'
                     : 'Searching…'}
                 </div>
               </div>
