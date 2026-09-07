@@ -577,26 +577,41 @@ export function UplinkNetworkSettings({ routerId, routerIp }: UplinkNetworkSetti
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleConnectNew} className="space-y-4 max-w-xl">
+          <form onSubmit={handleConnectNew} className="space-y-4 max-w-xl" autoComplete="off">
+            {/* Decoy fields to capture browser password manager autofill */}
+            <div style={{ display: 'none', opacity: 0, position: 'absolute', left: '-9999px' }} aria-hidden="true">
+              <input type="text" name="decoy_username_prevent_autofill" tabIndex={-1} autoComplete="off" />
+              <input type="password" name="decoy_password_prevent_autofill" tabIndex={-1} autoComplete="new-password" />
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-foreground mb-1">Location Label</label>
                 <Input
+                  name="uplink_location_label"
                   placeholder="e.g. Office Vodacom Wi-Fi"
                   value={newLabel}
                   onChange={e => setNewLabel(e.target.value)}
                   className="bg-background"
+                  autoComplete="off"
+                  data-lpignore="true"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-medium text-foreground mb-1">Wi-Fi Network Name (SSID) *</label>
                 <Input
+                  name="router_uplink_ssid"
                   placeholder="e.g. Vodacom_Office_5G"
                   value={newSsid}
                   onChange={e => setNewSsid(e.target.value)}
                   required
                   className="bg-background"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  data-lpignore="true"
                 />
               </div>
             </div>
@@ -605,11 +620,14 @@ export function UplinkNetworkSettings({ routerId, routerIp }: UplinkNetworkSetti
               <label className="block text-xs font-medium text-foreground mb-1">Wi-Fi Password (WPA2-PSK)</label>
               <div className="relative">
                 <Input
+                  name="router_uplink_wpa_passphrase"
                   type={showPassword ? 'text' : 'password'}
                   placeholder="Enter Wi-Fi password (leave blank for open networks)"
                   value={newPassword}
                   onChange={e => setNewPassword(e.target.value)}
                   className="bg-background pr-10"
+                  autoComplete="new-password"
+                  data-lpignore="true"
                 />
                 <button
                   type="button"

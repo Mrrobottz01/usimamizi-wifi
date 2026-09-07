@@ -600,15 +600,24 @@ export const RoutersListPage: React.FC = () => {
               </DialogFooter>
             </div>
           ) : (
-            <form onSubmit={handleRegister} className="space-y-4 pt-2">
+            <form onSubmit={handleRegister} className="space-y-4 pt-2" autoComplete="off">
+              {/* Decoy fields to capture browser password manager autofill */}
+              <div style={{ display: 'none', opacity: 0, position: 'absolute', left: '-9999px' }} aria-hidden="true">
+                <input type="text" name="decoy_router_reg_username" tabIndex={-1} autoComplete="off" />
+                <input type="password" name="decoy_router_reg_password" tabIndex={-1} autoComplete="new-password" />
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-foreground block mb-1">Router Name *</label>
                   <Input
+                    name="router_name"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="e.g. MikroTik Main Gateway"
                     required
+                    autoComplete="off"
+                    data-lpignore="true"
                     className="text-xs h-9"
                   />
                 </div>
@@ -653,10 +662,13 @@ export const RoutersListPage: React.FC = () => {
                 <div>
                   <label className="text-xs font-semibold text-foreground block mb-1">API Username *</label>
                   <Input
+                    name="routeros_api_username"
                     value={formData.username}
                     onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                     placeholder="admin"
                     required
+                    autoComplete="off"
+                    data-lpignore="true"
                     className="text-xs h-9 font-mono"
                   />
                 </div>
@@ -664,11 +676,14 @@ export const RoutersListPage: React.FC = () => {
                 <div>
                   <label className="text-xs font-semibold text-foreground block mb-1">API Password *</label>
                   <Input
+                    name="routeros_api_password"
                     type="password"
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     placeholder="••••••••"
                     required
+                    autoComplete="new-password"
+                    data-lpignore="true"
                     className="text-xs h-9 font-mono"
                   />
                 </div>

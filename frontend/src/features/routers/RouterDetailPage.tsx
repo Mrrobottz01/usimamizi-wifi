@@ -1080,16 +1080,25 @@ export const RouterDetailPage: React.FC = () => {
               </div>
             )}
 
-            <form onSubmit={handleSaveCredentials} className="space-y-4">
+            <form onSubmit={handleSaveCredentials} className="space-y-4" autoComplete="off">
+              {/* Decoy fields to capture browser password manager autofill */}
+              <div style={{ display: 'none', opacity: 0, position: 'absolute', left: '-9999px' }} aria-hidden="true">
+                <input type="text" name="decoy_router_api_username" tabIndex={-1} autoComplete="off" />
+                <input type="password" name="decoy_router_api_password" tabIndex={-1} autoComplete="new-password" />
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
                   API Username *
                 </label>
                 <input
+                  name="routeros_mgmt_username"
                   type="text"
                   value={credUsername}
                   onChange={(e) => setCredUsername(e.target.value)}
                   required
+                  autoComplete="off"
+                  data-lpignore="true"
                   className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                 />
               </div>
@@ -1099,10 +1108,13 @@ export const RouterDetailPage: React.FC = () => {
                   New API Password
                 </label>
                 <input
+                  name="routeros_mgmt_password"
                   type="password"
                   value={credPassword}
                   onChange={(e) => setCredPassword(e.target.value)}
                   placeholder="Leave blank to keep existing password"
+                  autoComplete="new-password"
+                  data-lpignore="true"
                   className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                 />
                 <p className="text-[11px] text-gray-400 mt-1">Never displayed or transmitted in plaintext responses.</p>
