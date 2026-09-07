@@ -103,7 +103,7 @@ export const PlanFormModal: React.FC<PlanFormModalProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Price (TZS)</label>
               <input
@@ -113,6 +113,20 @@ export const PlanFormModal: React.FC<PlanFormModalProps> = ({
                 value={formData.price}
                 onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                 className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Duration Value ({formData.duration_unit.toLowerCase()})
+              </label>
+              <input
+                type="number"
+                min="1"
+                required
+                value={formData.duration_value}
+                onChange={(e) => setFormData({ ...formData, duration_value: parseInt(e.target.value) || 1 })}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                placeholder={formData.duration_unit === 'MINUTES' ? 'e.g. 30' : 'e.g. 1'}
               />
             </div>
             <div>
