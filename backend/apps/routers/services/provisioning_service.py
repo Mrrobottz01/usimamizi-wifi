@@ -16,6 +16,8 @@ logger = logging.getLogger(__name__)
 DEFAULT_RADIUS_SECRET = 'radius_shared_secret_lab'
 DEFAULT_RADIUS_IP = '192.168.1.59'
 DEFAULT_WALLED_GARDEN_DOMAINS = [
+    'wifi.swahilicode.tech',
+    'swahilicode.tech',
     'api.snippe.sh',
     'checkout.snippe.sh',
     'snippe.sh',
@@ -130,12 +132,27 @@ def generate_router_bootstrap_script(
             '# ---------------------------------------------------------------',
             '# 4. Payment Gateway & Portal Walled Garden Whitelist',
             '# ---------------------------------------------------------------',
+            '# HTTP Port 80 Walled Garden Proxy',
             ':do { /ip hotspot walled-garden remove [find comment~"Usimamizi"] } on-error={}',
         ])
         for dom in domains:
             clean_dom = dom.strip()
             if clean_dom:
                 lines.append(f'/ip hotspot walled-garden add dst-host="*{clean_dom}" action=allow comment="Usimamizi Walled Garden: {clean_dom}"')
+        lines.extend([
+            '',
+            '# IP & HTTPS Port 443 Layer 3/4 Walled Garden (Instant zero-delay bypass)',
+            ':do { /ip hotspot walled-garden ip remove [find comment~"Usimamizi"] } on-error={}',
+            '# Direct VPS server IP for wire-speed TLS handshake without DNS snooping delays',
+            '/ip hotspot walled-garden ip add dst-address=23.95.130.161 action=accept comment="Usimamizi: SaaS Portal Server IP"',
+            '# DNS allow to prevent captive portal resolver timeouts on Android/iOS',
+            '/ip hotspot walled-garden ip add dst-port=53 protocol=udp action=accept comment="Usimamizi: DNS UDP"',
+            '/ip hotspot walled-garden ip add dst-port=53 protocol=tcp action=accept comment="Usimamizi: DNS TCP"',
+        ])
+        for dom in domains:
+            clean_dom = dom.strip()
+            if clean_dom:
+                lines.append(f'/ip hotspot walled-garden ip add dst-host="*{clean_dom}" action=accept comment="Usimamizi IP Walled Garden: {clean_dom}"')
         lines.append('')
 
     if enable_anti_tethering:
