@@ -1,3 +1,4 @@
+import logging
 from django.conf import settings
 from rest_framework import status
 from rest_framework.permissions import AllowAny
@@ -6,6 +7,8 @@ from rest_framework.views import APIView
 
 from ..services.radius_services import authorize_radius_access, process_radius_accounting
 from .serializers import RadiusAccountingSerializer, RadiusAuthorizeSerializer
+
+logger = logging.getLogger(__name__)
 
 
 def validate_radius_api_key(request) -> bool:
@@ -49,6 +52,10 @@ class RadiusAuthorizeView(APIView):
             nas_ip=data.get('nas_ip'),
             nas_identifier=data.get('nas_identifier'),
             mac_address=data.get('mac_address')
+        )
+        logger.info(
+            "RADIUS_AUTH_DECISION: username=%s nas_ip=%s accept=%s reason=%s reply=%s",
+            data['username'], data.get('nas_ip'), result['accept'], result.get('reason'), result.get('reply')
         )
 
         if result['accept']:

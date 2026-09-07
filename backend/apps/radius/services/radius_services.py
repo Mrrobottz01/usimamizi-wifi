@@ -40,7 +40,7 @@ def normalize_mac_address(raw_mac: Optional[str]) -> str:
 def resolve_nas(nas_ip: Optional[str] = None, nas_identifier: Optional[str] = None) -> Optional[RadiusClient]:
     """
     Resolve authorized NAS router client.
-    Supports direct nas_ip, router management_ip (tunnel), nas_identifier, and active client fallback.
+    Supports direct nas_ip, router management_ip, router gateway_ip, server IP, and loopback fallback.
     """
     if nas_ip and nas_ip not in ['127.0.0.1', 'localhost']:
         client = RadiusClient.objects.filter(nas_ip=nas_ip).first()
@@ -49,26 +49,15 @@ def resolve_nas(nas_ip: Optional[str] = None, nas_identifier: Optional[str] = No
         client = RadiusClient.objects.filter(router__management_ip=nas_ip).first()
         if client:
             return client
+        client = RadiusClient.objects.filter(router__hotspots__gateway_ip=nas_ip).first()
+        if client:
+            return client
+        if nas_ip == '23.95.130.161':
+            return RadiusClient.objects.filter(is_active=True).first()
         if nas_identifier:
             client = RadiusClient.objects.filter(nas_identifier=nas_identifier).first()
             if client:
                 return client
-
-        # Auto-provision RadiusClient from Router if no matching client found
-        from apps.routers.models import Router
-        router = Router.objects.filter(management_ip=nas_ip).first() or Router.objects.first()
-        if router and RadiusClient.objects.filter(is_active=True).count() == 0:
-            client, _ = RadiusClient.objects.get_or_create(
-                company=router.company,
-                nas_ip=nas_ip,
-                defaults={
-                    'name': f"{router.name} (Auto-Registered)",
-                    'router': router,
-                    'is_active': True,
-                }
-            )
-            return client
-
         return None
 
     if nas_identifier:
