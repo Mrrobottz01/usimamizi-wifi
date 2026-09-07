@@ -52,7 +52,22 @@ def resolve_nas(nas_ip: Optional[str] = None, nas_identifier: Optional[str] = No
         client = RadiusClient.objects.filter(router__hotspots__gateway_ip=nas_ip).first()
         if client:
             return client
-        if nas_ip == '23.95.130.161':
+        if nas_ip == '23.95.130.161' or nas_ip.startswith('10.8.0.'):
+            # Check if router exists with this IP and auto-create client if missing
+            from apps.routers.models import Router
+            r = Router.objects.filter(management_ip=nas_ip).first()
+            if r:
+                rc, _ = RadiusClient.objects.get_or_create(
+                    router=r,
+                    defaults={
+                        'company': r.company,
+                        'name': f"NAS - {r.name}",
+                        'nas_ip': nas_ip,
+                        'shared_secret': getattr(settings, 'RADIUS_DEFAULT_SHARED_SECRET', 'radius_shared_secret_lab'),
+                        'is_active': True,
+                    }
+                )
+                return rc
             return RadiusClient.objects.filter(is_active=True).first()
         if nas_identifier:
             client = RadiusClient.objects.filter(nas_identifier=nas_identifier).first()

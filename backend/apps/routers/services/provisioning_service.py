@@ -14,7 +14,7 @@ from .router_service import collect_router_telemetry
 logger = logging.getLogger(__name__)
 
 DEFAULT_RADIUS_SECRET = 'radius_shared_secret_lab'
-DEFAULT_RADIUS_IP = '192.168.1.59'
+DEFAULT_RADIUS_IP = '10.8.0.1'
 DEFAULT_WALLED_GARDEN_DOMAINS = [
     'wifi.swahilicode.tech',
     'swahilicode.tech',
