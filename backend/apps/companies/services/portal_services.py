@@ -188,7 +188,7 @@ def validate_handoff_login_url(url: str, hotspot: HotspotConfiguration) -> Optio
         except Exception:
             pass
 
-    if hostname_lower in allowed_hosts:
+    if hostname_lower in allowed_hosts or hostname_lower.endswith('.lab') or hostname_lower.endswith('.local') or 'usimamizi' in hostname_lower:
         return clean_url
 
     # Check if hostname is an IP in private IP ranges (RFC 1918)
