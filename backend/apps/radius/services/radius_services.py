@@ -53,6 +53,22 @@ def resolve_nas(nas_ip: Optional[str] = None, nas_identifier: Optional[str] = No
             client = RadiusClient.objects.filter(nas_identifier=nas_identifier).first()
             if client:
                 return client
+
+        # Auto-provision RadiusClient from Router if no matching client found
+        from apps.routers.models import Router
+        router = Router.objects.filter(management_ip=nas_ip).first() or Router.objects.first()
+        if router and RadiusClient.objects.filter(is_active=True).count() == 0:
+            client, _ = RadiusClient.objects.get_or_create(
+                company=router.company,
+                nas_ip=nas_ip,
+                defaults={
+                    'name': f"{router.name} (Auto-Registered)",
+                    'router': router,
+                    'is_active': True,
+                }
+            )
+            return client
+
         return None
 
     if nas_identifier:
