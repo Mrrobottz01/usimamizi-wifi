@@ -153,80 +153,66 @@ def scan_nearby_networks(
 ) -> List[Dict[str, Any]]:
     """
     Scan for nearby wireless networks across 2.4 GHz and 5 GHz spectrum.
-    Uses native Wi-Fi hardware adapter scan for full spectrum discovery.
+    Queries the target RouterOS wireless interface directly via API.
     """
     networks: Dict[str, Dict[str, Any]] = {}
 
-    # 1. Native Wi-Fi spectrum scan (scans both 2.4 GHz and 5 GHz across all channels)
-    try:
-        import subprocess
-        proc = subprocess.run(
-            ['netsh', 'wlan', 'show', 'networks', 'mode=bssid'],
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
-        current_ssid = None
-        current_signal = None
-        current_band = None
-
-        for line in proc.stdout.splitlines():
-            line = line.strip()
-            if line.startswith('SSID ') and ':' in line:
-                current_ssid = line.split(':', 1)[1].strip()
-            elif line.startswith('Signal') and ':' in line:
-                current_signal = line.split(':', 1)[1].strip()
-            elif line.startswith('Band') and ':' in line:
-                current_band = line.split(':', 1)[1].strip()
-                if current_ssid and current_ssid != 'Usimamizi-WiFi-Lab':
-                    if current_ssid not in networks:
-                        networks[current_ssid] = {
-                            'ssid': current_ssid,
-                            'signal': current_signal or 'N/A',
-                            'band': current_band or '5GHz',
-                            'frequency': ''
-                        }
-    except Exception as e:
-        logger.warning('Native Wi-Fi scan error: %s', e)
-
-    # 2. Query RouterOS wireless scan if router is reachable
+    # Query RouterOS wireless scan if router is reachable
     try:
         target_router, interface_name, ip, client = _resolve_router_and_client(
             router=router,
             router_ip=router_ip,
-            timeout=3.0,
+            timeout=8.0,
         )
         with client:
-            client._send_sentence(['/interface/wireless/scan', '=.tag=s1', f'=numbers={interface_name}', '=duration=2s'])
-            start_t = time.time()
-            while time.time() - start_t < 2.5:
-                try:
-                    line = client._read_sentence()
-                    if not line or line[0] in ['!done', '!trap']:
-                        break
-                    if line[0] == '!re':
-                        d = dict(x[1:].split('=', 1) for x in line[1:] if x.startswith('=') and '=' in x[1:])
-                        ssid = d.get('ssid')
-                        if ssid and ssid != 'Usimamizi-WiFi-Lab' and ssid not in networks:
-                            networks[ssid] = {
-                                'ssid': ssid,
-                                'signal': d.get('sig', 'N/A'),
-                                'band': d.get('band', '5GHz'),
-                                'frequency': d.get('frequency', '')
-                            }
-                except socket.timeout:
-                    break
+            # Query active wireless interfaces from router
+            wlan_candidates = []
             try:
-                client._send_sentence(['/cancel', '=tag=s1'])
-                client._read_sentence()
+                wlan_list = client.query('/interface/wireless/print')
+                for w in wlan_list:
+                    name = w.get('name')
+                    # Station mode interfaces are primary scan candidates
+                    if name:
+                        wlan_candidates.append(name)
             except Exception:
                 pass
-    except Exception:
-        pass
+
+            if not wlan_candidates:
+                # Default to wlan2 (5GHz uplink) if not dynamically queried
+                wlan_candidates = ['wlan2']
+
+            for wlan_iface in wlan_candidates:
+                try:
+                    # RouterOS API scan: /interface/wireless/scan with =.id=<wlan_name>
+                    client._send_sentence(['/interface/wireless/scan', f'=.id={wlan_iface}'])
+                    start_t = time.time()
+                    while time.time() - start_t < 3.0:
+                        try:
+                            line = client._read_sentence()
+                            if not line or line[0] in ['!done', '!trap']:
+                                break
+                            if line[0] == '!re':
+                                d = dict(x[1:].split('=', 1) for x in line[1:] if x.startswith('=') and '=' in x[1:])
+                                ssid = d.get('ssid')
+                                if ssid and ssid != 'Usimamizi-WiFi-Lab' and ssid not in networks:
+                                    band = '5GHz' if 'wlan2' in wlan_iface or '5' in str(d.get('channel', '')) else '2.4GHz'
+                                    networks[ssid] = {
+                                        'ssid': ssid,
+                                        'signal': d.get('sig', 'N/A'),
+                                        'band': band,
+                                        'frequency': d.get('channel', '') or d.get('frequency', '')
+                                    }
+                        except (socket.timeout, TimeoutError):
+                            break
+                except Exception as wlan_err:
+                    logger.warning("Wireless scan on %s error: %s", wlan_iface, wlan_err)
+
+    except Exception as e:
+        logger.warning('RouterOS Wi-Fi scan error: %s', e)
 
     def parse_sig(val):
         try:
-            return int(val.replace('%', '').split('@')[0].replace('dBm', '').strip())
+            return int(str(val).replace('%', '').split('@')[0].replace('dBm', '').strip())
         except Exception:
             return -999
 
