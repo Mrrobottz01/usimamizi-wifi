@@ -119,9 +119,13 @@ def get_router_uplink_status(
                 status['wan_ip'] = dhcp.get('address', 'N/A')
                 status['gateway'] = dhcp.get('gateway', 'N/A')
 
-                # Auto-sync dynamic WAN management_ip if bound and changed
+                # Auto-sync dynamic WAN management_ip only if router is NOT using a private management tunnel (10.8.0.x or 10.5.50.x)
                 raw_ip = dhcp.get('address', '').split('/')[0].strip()
-                if raw_ip and raw_ip != 'N/A' and target_router and target_router.management_ip != raw_ip:
+                is_tunnel_ip = target_router and (
+                    str(target_router.management_ip).startswith('10.8.')
+                    or str(target_router.management_ip).startswith('10.5.50.')
+                )
+                if raw_ip and raw_ip != 'N/A' and target_router and target_router.management_ip != raw_ip and not is_tunnel_ip:
                     try:
                         logger.info("Auto-syncing router %s management_ip: %s -> %s", target_router.name, target_router.management_ip, raw_ip)
                         target_router.management_ip = raw_ip
