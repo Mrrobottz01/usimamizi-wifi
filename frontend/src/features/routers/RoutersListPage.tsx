@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
   Router as RouterIcon,
   Search,
@@ -13,6 +13,7 @@ import {
   Radio,
   ChevronRight,
   Zap,
+  BookOpen,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../../hooks/useToast';
@@ -251,7 +252,17 @@ export const RoutersListPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Link to="/settings?tab=router-guide">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-xs text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800/80 hover:bg-indigo-50 dark:hover:bg-indigo-950/50"
+            >
+              <BookOpen className="h-3.5 w-3.5" />
+              <span>Router Setup & ISP Guide</span>
+            </Button>
+          </Link>
           <Button
             variant="outline"
             size="sm"

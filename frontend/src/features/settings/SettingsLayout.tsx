@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/tabs';
 import { CompanySettings } from './CompanySettings';
 import { BrandingSettings } from './BrandingSettings';
@@ -6,6 +6,7 @@ import { NotificationsSettings } from './NotificationsSettings';
 import { SecuritySettings } from './SecuritySettings';
 import { PaymentProviderSettings } from './PaymentProviderSettings';
 import { CustomerSubscriptionSettings } from './CustomerSubscriptionSettings';
+import { RouterSetupGuide } from './RouterSetupGuide';
 import { Button } from '../../components/ui/button';
 import {
   Building2,
@@ -16,20 +17,28 @@ import {
   Wifi,
   Users,
   Server,
-  ArrowRight
+  ArrowRight,
+  BookOpen
 } from 'lucide-react';
 
 export function SettingsLayout() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const currentTab = searchParams.get('tab') || 'company';
+
+  const handleTabChange = (val: string) => {
+    setSearchParams({ tab: val });
+  };
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground">Settings</h1>
         <p className="text-sm text-muted-foreground">
-          Manage company preferences, billing gateways, notifications, subscriber access, and security policies.
+          Manage company preferences, billing gateways, notifications, subscriber access, and hardware deployment guides.
         </p>
       </div>
 
-      <Tabs defaultValue="company" className="w-full">
+      <Tabs value={currentTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="w-full justify-start border-b border-border bg-transparent p-0 h-auto rounded-none gap-6 flex-wrap">
           <TabsTrigger
             value="company"
@@ -74,6 +83,13 @@ export function SettingsLayout() {
             Subscriptions & OTP
           </TabsTrigger>
           <TabsTrigger
+            value="router-guide"
+            className="flex items-center gap-2 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none px-1 pb-3 pt-2 text-indigo-600 dark:text-indigo-400 data-[state=active]:text-foreground font-medium"
+          >
+            <BookOpen className="h-4 w-4 text-indigo-500" />
+            Router & ISP Guide
+          </TabsTrigger>
+          <TabsTrigger
             value="hotspot"
             className="flex items-center gap-2 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none px-1 pb-3 pt-2 text-muted-foreground data-[state=active]:text-foreground font-medium"
           >
@@ -91,6 +107,9 @@ export function SettingsLayout() {
 
         <TabsContent value="company" className="pt-6">
           <CompanySettings />
+        </TabsContent>
+        <TabsContent value="router-guide" className="pt-6">
+          <RouterSetupGuide />
         </TabsContent>
         <TabsContent value="payments" className="pt-6">
           <PaymentProviderSettings />
