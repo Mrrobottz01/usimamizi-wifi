@@ -40,13 +40,19 @@ def normalize_mac_address(raw_mac: Optional[str]) -> str:
 def resolve_nas(nas_ip: Optional[str] = None, nas_identifier: Optional[str] = None) -> Optional[RadiusClient]:
     """
     Resolve authorized NAS router client.
+    Supports direct nas_ip, router management_ip (tunnel), nas_identifier, and active client fallback.
     """
     if nas_ip and nas_ip not in ['127.0.0.1', 'localhost']:
         client = RadiusClient.objects.filter(nas_ip=nas_ip).first()
         if client:
             return client
+        client = RadiusClient.objects.filter(router__management_ip=nas_ip).first()
+        if client:
+            return client
         if nas_identifier:
-            return RadiusClient.objects.filter(nas_identifier=nas_identifier).first()
+            client = RadiusClient.objects.filter(nas_identifier=nas_identifier).first()
+            if client:
+                return client
         return None
 
     if nas_identifier:
@@ -151,14 +157,23 @@ def authorize_radius_access(
         models.Q(display_code__iexact=username_clean) | models.Q(display_code__iexact=canonical_username)
     ).first()
 
+    if not voucher:
+        voucher = Voucher.objects.select_related('entitlement', 'plan').filter(
+            models.Q(display_code__iexact=username_clean) | models.Q(display_code__iexact=canonical_username)
+        ).first()
+
     if voucher:
         if hasattr(voucher, 'entitlement') and voucher.entitlement:
             entitlement = voucher.entitlement
+            if entitlement.status == 'PENDING':
+                entitlement.status = 'ACTIVE'
+                entitlement.activated_at = timezone.now()
+                entitlement.save(update_fields=['status', 'activated_at', 'updated_at'])
         elif voucher.status in (VoucherStatus.AVAILABLE, VoucherStatus.RESERVED):
             try:
                 _, entitlement = redeem_voucher(
                     voucher_code=voucher.display_code,
-                    company=company
+                    company=voucher.company
                 )
             except Exception:
                 pass
