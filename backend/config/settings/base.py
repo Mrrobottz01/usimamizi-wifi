@@ -99,6 +99,9 @@ else:
         'default': env.db('DATABASE_URL', default='postgres://usimamizi:usimamizi_secret_pass@localhost:5432/usimamizi_db')
     }
 
+# Redis configuration
+REDIS_URL = env('REDIS_URL', default='redis://127.0.0.1:6379/0')
+
 # Custom User Model
 AUTH_USER_MODEL = 'accounts.User'
 
