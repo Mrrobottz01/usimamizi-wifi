@@ -450,7 +450,7 @@ export interface PublicPlan {
   currency: string;
   validity_mode: 'CONTINUOUS' | 'USAGE_TIME' | 'CALENDAR';
   duration_value: number;
-  duration_unit: 'HOURS' | 'DAYS' | 'WEEKS' | 'MONTHS';
+  duration_unit: 'MINUTES' | 'HOURS' | 'DAYS' | 'WEEKS' | 'MONTHS';
   download_speed_kbps?: number;
   upload_speed_kbps?: number;
   data_limit_bytes?: number;

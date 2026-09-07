@@ -41,7 +41,9 @@ def calculate_plan_duration(plan: Plan) -> timedelta:
     """Calculate timedelta for plan duration."""
     val = plan.duration_value
     unit = plan.duration_unit
-    if unit == DurationUnit.HOURS:
+    if unit == DurationUnit.MINUTES:
+        return timedelta(minutes=val)
+    elif unit == DurationUnit.HOURS:
         return timedelta(hours=val)
     elif unit == DurationUnit.DAYS:
         return timedelta(days=val)

@@ -43,6 +43,33 @@ def test_create_plan_service_validation():
 
 
 @pytest.mark.django_db
+def test_create_plan_with_minutes_unit():
+    user = User.objects.create_user(email='minutes_plan@example.com', password='Password123!')
+    company = create_company(name='Minutes Co', user=user)
+
+    plan_data = {
+        'name': '30 Minutes Quick Pass',
+        'code': '30MIN-PASS',
+        'price': '500.00',
+        'currency': 'TZS',
+        'duration_value': 30,
+        'duration_unit': 'MINUTES',
+        'download_speed_kbps': 5000,
+        'upload_speed_kbps': 2000,
+        'max_devices': 1,
+    }
+    plan = create_plan(company=company, data=plan_data)
+    assert plan.name == '30 Minutes Quick Pass'
+    assert plan.duration_unit == 'MINUTES'
+    assert plan.duration_value == 30
+
+    from apps.customers.services.subscription_services import calculate_plan_duration
+    from datetime import timedelta
+    duration = calculate_plan_duration(plan)
+    assert duration == timedelta(minutes=30)
+
+
+@pytest.mark.django_db
 def test_plan_api_tenant_isolation():
     user1 = User.objects.create_user(email='user1_plan@example.com', password='Password123!')
     company1 = create_company(name='Company A', user=user1)

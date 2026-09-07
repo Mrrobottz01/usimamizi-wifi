@@ -122,6 +122,7 @@ export const PlanFormModal: React.FC<PlanFormModalProps> = ({
                 onChange={(e) => setFormData({ ...formData, duration_unit: e.target.value as Plan['duration_unit'] })}
                 className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
               >
+                <option value="MINUTES">Minutes</option>
                 <option value="HOURS">Hours</option>
                 <option value="DAYS">Days</option>
                 <option value="WEEKS">Weeks</option>
