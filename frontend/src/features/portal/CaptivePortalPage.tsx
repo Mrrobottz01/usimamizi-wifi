@@ -178,6 +178,53 @@ export const CaptivePortalPage: React.FC = () => {
           }
         }
       }
+
+      // Check for active session from URL query params or localStorage
+      const statusParam = searchParams.get('status');
+      const voucherParam = searchParams.get('voucher') || searchParams.get('session');
+      const activeSessionKey = `usimamizi_active_session_${slug}`;
+
+      let candidateVoucher = voucherParam;
+      if (!candidateVoucher) {
+        try {
+          const cachedSession = localStorage.getItem(activeSessionKey);
+          if (cachedSession) {
+            const parsed = JSON.parse(cachedSession);
+            if (parsed?.voucher) candidateVoucher = parsed.voucher;
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      if (candidateVoucher) {
+        try {
+          const statusRes = await fetch(
+            `/api/v1/public/hotspots/${slug}/status/?username=${encodeURIComponent(candidateVoucher)}`
+          );
+          if (statusRes.ok) {
+            const statusData: CustomerSessionStatus = await statusRes.json();
+            if (
+              statusData.connected ||
+              statusParam === 'connected' ||
+              (statusData.remaining_seconds && statusData.remaining_seconds > 0)
+            ) {
+              setConnectedSession({
+                voucher: candidateVoucher,
+                planName: statusData.plan_name,
+                remainingSeconds: statusData.remaining_seconds,
+                remainingDataBytes: statusData.remaining_data_bytes,
+              });
+              setHandoffStatus('CONNECTED');
+              localStorage.setItem(activeSessionKey, JSON.stringify({ voucher: candidateVoucher }));
+            } else {
+              localStorage.removeItem(activeSessionKey);
+            }
+          }
+        } catch {
+          // ignore status fetch error
+        }
+      }
     } catch (err) {
       console.error('Failed to load hotspot config and plans', err);
       setNotFound(true);
@@ -190,10 +237,14 @@ export const CaptivePortalPage: React.FC = () => {
     fetchHotspotConfigAndPlans();
   }, [fetchHotspotConfigAndPlans]);
 
-  // Submit RouterOS hidden login form when handoff credentials are ready
+  // Submit RouterOS login form when handoff credentials are ready
   useEffect(() => {
     if (handoffCredentials && routerFormRef.current) {
-      routerFormRef.current.submit();
+      try {
+        routerFormRef.current.submit();
+      } catch (err) {
+        console.warn('Router login form auto-submit deferred:', err);
+      }
     }
   }, [handoffCredentials]);
 
@@ -214,10 +265,19 @@ export const CaptivePortalPage: React.FC = () => {
       actionUrl: targetActionUrl,
     });
 
+    if (slug) {
+      try {
+        localStorage.setItem(`usimamizi_active_session_${slug}`, JSON.stringify({ voucher: username }));
+      } catch {
+        // ignore
+      }
+    }
+
+    // Safety fallback: if top-level navigation has not redirected after 6s, show manual retry
     setTimeout(() => {
-      setHandoffStatus('CONNECTED');
-    }, 2200);
-  }, [loginUrl, routerLinkLogin, hotspot]);
+      setHandoffStatus((prev) => (prev === 'ACTIVATING' ? 'FAILED' : prev));
+    }, 6000);
+  }, [loginUrl, routerLinkLogin, hotspot, slug]);
 
   // Polling for active purchase
   useEffect(() => {
@@ -432,13 +492,21 @@ export const CaptivePortalPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between items-center p-4 sm:p-6 selection:bg-blue-600 selection:text-white">
-      {/* Hidden RouterOS Login Form for automated submission */}
-      <iframe name="router_login_frame" style={{ display: 'none' }} title="Router Login" />
+      {/* Direct RouterOS Login Form for top-level navigation handoff */}
       {handoffCredentials && (
-        <form ref={routerFormRef} target="router_login_frame" method="POST" action={handoffCredentials.actionUrl} className="hidden">
+        <form
+          ref={routerFormRef}
+          method="POST"
+          action={handoffCredentials.actionUrl}
+          className="hidden"
+        >
           <input type="hidden" name="username" value={handoffCredentials.username} />
           <input type="hidden" name="password" value={handoffCredentials.password} />
-          <input type="hidden" name="dst" value={destinationUrl} />
+          <input
+            type="hidden"
+            name="dst"
+            value={`${window.location.origin}/p/${slug}?status=connected&voucher=${encodeURIComponent(handoffCredentials.username)}`}
+          />
         </form>
       )}
 
@@ -496,21 +564,37 @@ export const CaptivePortalPage: React.FC = () => {
           {/* Screen 1: Activation In-Progress State */}
           {handoffStatus === 'ACTIVATING' ? (
             <div className="space-y-4 pt-2 text-center animate-in fade-in zoom-in duration-200">
-              <div className="rounded-xl bg-blue-500/10 border border-blue-500/30 p-6 space-y-3">
+              <div className="rounded-xl bg-blue-500/10 border border-blue-500/30 p-6 space-y-3.5">
                 <RefreshCw className="h-10 w-10 animate-spin text-blue-400 mx-auto" />
-                <h2 className="text-sm font-bold text-blue-300">
-                  {lang === 'SW' ? 'Inawasha Wi-Fi Yako…' : 'Activating Your Wi-Fi…'}
-                </h2>
-                <p className="text-xs text-slate-300 leading-relaxed">
-                  {lang === 'SW'
-                    ? 'Inatuma taarifa kwenye kisanduku cha mtandao. Tafadhali subiri sekunde chache…'
-                    : 'Connecting your device to the hotspot gateway. Please wait a moment…'}
-                </p>
+                <div>
+                  <h2 className="text-sm font-bold text-blue-300">
+                    {lang === 'SW' ? 'Inawasha Wi-Fi Yako…' : 'Activating Your Wi-Fi…'}
+                  </h2>
+                  <p className="text-xs text-slate-300 leading-relaxed mt-1">
+                    {lang === 'SW'
+                      ? 'Inatuma taarifa kwenye kisanduku cha mtandao. Kama ukurasa haujaondoka, bofya kitufe cha chini:'
+                      : 'Connecting your device to the hotspot gateway. If not redirected automatically, tap below:'}
+                  </p>
+                </div>
+
                 {connectedSession?.voucher && (
-                  <div className="text-xs font-mono font-bold text-slate-300 bg-slate-950/60 py-1 px-3 rounded-md inline-block border border-slate-800">
+                  <div className="text-xs font-mono font-bold text-slate-300 bg-slate-950/60 py-1.5 px-3 rounded-md inline-block border border-slate-800">
                     {connectedSession.voucher}
                   </div>
                 )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (routerFormRef.current) {
+                      routerFormRef.current.submit();
+                    }
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-lg active:scale-[0.98] transition-all"
+                >
+                  <span>{lang === 'SW' ? 'Unganisha Sasa (Bofya Hapa)' : 'Complete Connection (Tap Here)'}</span>
+                  <ArrowRight className="h-4 w-4" />
+                </button>
               </div>
             </div>
           ) : handoffStatus === 'FAILED' ? (
@@ -635,6 +719,13 @@ export const CaptivePortalPage: React.FC = () => {
 
                 <a
                   href={`http://${gatewayHost}/logout`}
+                  onClick={() => {
+                    try {
+                      if (slug) localStorage.removeItem(`usimamizi_active_session_${slug}`);
+                    } catch {
+                      // ignore
+                    }
+                  }}
                   className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 text-xs font-semibold transition-colors"
                 >
                   <Power className="h-3.5 w-3.5" />

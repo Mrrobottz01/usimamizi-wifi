@@ -192,6 +192,8 @@ class PublicHotspotStatusView(APIView):
             return Response({"code": "missing_username", "detail": "'username' parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
 
         clean_code = username.upper().replace('-', '').replace(' ', '')
+        from apps.vouchers.selectors.voucher_selectors import normalize_voucher_code
+        code_canonical = normalize_voucher_code(username)
 
         # Look up active session for this voucher username
         session = HotspotSession.objects.filter(
@@ -202,7 +204,14 @@ class PublicHotspotStatusView(APIView):
         # Resolve entitlement from session or directly from voucher
         entitlement = session.entitlement if (session and session.entitlement) else None
         if not entitlement:
-            voucher = Voucher.objects.filter(company=hotspot.company, code=clean_code).first()
+            from django.db.models import Q
+            voucher = Voucher.objects.select_related('entitlement').filter(
+                company=hotspot.company
+            ).filter(
+                Q(display_code__iexact=username) |
+                Q(display_code__iexact=clean_code) |
+                Q(display_code__iexact=code_canonical)
+            ).first()
             if voucher and hasattr(voucher, 'entitlement'):
                 entitlement = voucher.entitlement
 

@@ -2,7 +2,7 @@
 # Routes RADIUS Access-Request and Accounting-Request packets to Django REST API endpoints
 
 rest {
-    connect_uri = "http://127.0.0.1:8000/api/v1/radius"
+    connect_uri = "http://127.0.0.1:8090/api/v1/radius"
 
     # Authorization / Authentication Mapping
     authorize {
