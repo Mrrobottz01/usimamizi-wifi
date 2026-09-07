@@ -191,5 +191,5 @@ CELERY_TIMEZONE = TIME_ZONE
 SNIPPE_API_KEY = env('SNIPPE_API_KEY', default='snp_1be5f3b7512c4d5f6dc4dff7354ca1c409f6ebeb5700560d2136d7bf3125d962')
 SNIPPE_WEBHOOK_SECRET = env('SNIPPE_WEBHOOK_SECRET', default='')
 SNIPPE_API_BASE_URL = env('SNIPPE_API_BASE_URL', default='https://api.snippe.sh')
-SNIPPE_WEBHOOK_URL = env('SNIPPE_WEBHOOK_URL', default='https://usimamizi.co.tz/api/v1/payments/snippe/webhook/')
+SNIPPE_WEBHOOK_URL = env('SNIPPE_WEBHOOK_URL', default='https://wifi.swahilicode.tech/api/v1/payments/snippe/webhook/')
 
